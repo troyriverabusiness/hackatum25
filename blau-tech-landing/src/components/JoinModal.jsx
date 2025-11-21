@@ -1,0 +1,463 @@
+import { useState, useEffect } from 'react';
+import { Dialog } from '@headlessui/react';
+import { motion } from 'framer-motion';
+import { supabase } from '../lib/supabase';
+
+const initialForm = {
+  fullName: '',
+  email: '',
+  phone: '',
+  referral: 'Friend',
+  consent: false,
+};
+
+const referralOptions = ['Friend', 'LinkedIn', 'Event', 'Other'];
+
+const JoinModal = ({ isOpen, onClose }) => {
+  const [formData, setFormData] = useState(initialForm);
+  const [submitted, setSubmitted] = useState(false);
+  const [errors, setErrors] = useState({});
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [hasAttemptedSubmit, setHasAttemptedSubmit] = useState(false);
+
+  useEffect(() => {
+    if (!isOpen) {
+      // Reset form state when modal closes
+      setFormData(initialForm);
+      setSubmitted(false);
+      setErrors({});
+      setIsSubmitting(false);
+      setHasAttemptedSubmit(false);
+      return;
+    }
+    
+    const handleKeyDown = (event) => {
+      if (event.key === 'Escape') {
+        onClose();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, onClose]);
+
+  // Format German phone number: +49 XXX XXXXXXX
+  const formatGermanPhone = (value) => {
+    // Remove all non-numeric characters except leading +
+    let cleaned = value.replace(/[^\d+]/g, '');
+    
+    // Ensure + is only at the start
+    if (cleaned.includes('+') && cleaned[0] !== '+') {
+      cleaned = cleaned.replace(/\+/g, '');
+      cleaned = '+' + cleaned;
+    }
+    
+    // If it starts with +, ensure it's +49
+    if (cleaned.startsWith('+')) {
+      if (cleaned.length === 1) {
+        return '+';
+      }
+      if (cleaned.length === 2 && cleaned[1] !== '4') {
+        return '+49';
+      }
+      if (cleaned.length === 3 && cleaned[1] !== '4' && cleaned[2] !== '9') {
+        return '+49';
+      }
+      if (cleaned.startsWith('+49')) {
+        const digits = cleaned.slice(3);
+        if (digits.length === 0) {
+          return '+49';
+        }
+        // Format: +49 XXX XXXXXXX (or +49 XX XXXXXXX for shorter numbers)
+        if (digits.length <= 3) {
+          return `+49 ${digits}`;
+        } else if (digits.length <= 6) {
+          return `+49 ${digits.slice(0, 3)} ${digits.slice(3)}`;
+        } else {
+          return `+49 ${digits.slice(0, 3)} ${digits.slice(3, 6)} ${digits.slice(6, 11)}`;
+        }
+      } else {
+        // If doesn't start with +49, force it
+        const digits = cleaned.replace(/^\+/, '');
+        if (digits.length === 0) {
+          return '+49';
+        }
+        if (digits.length <= 3) {
+          return `+49 ${digits}`;
+        } else if (digits.length <= 6) {
+          return `+49 ${digits.slice(0, 3)} ${digits.slice(3)}`;
+        } else {
+          return `+49 ${digits.slice(0, 3)} ${digits.slice(3, 6)} ${digits.slice(6, 11)}`;
+        }
+      }
+    } else {
+      // No +, add it and format
+      if (cleaned.length === 0) {
+        return '';
+      }
+      if (cleaned.length <= 3) {
+        return `+49 ${cleaned}`;
+      } else if (cleaned.length <= 6) {
+        return `+49 ${cleaned.slice(0, 3)} ${cleaned.slice(3)}`;
+      } else {
+        return `+49 ${cleaned.slice(0, 3)} ${cleaned.slice(3, 6)} ${cleaned.slice(6, 11)}`;
+      }
+    }
+  };
+
+  // Check if only required fields are not empty (for button enable/disable)
+  const isFormValid = () => {
+    return (
+      formData.fullName.trim() !== '' &&
+      formData.email.trim() !== '' &&
+      formData.consent
+    );
+  };
+
+  // Validate empty fields (show immediately)
+  const validateEmpty = () => {
+    const nextErrors = {};
+    if (!formData.fullName.trim()) {
+      nextErrors.fullName = 'Please share your name so we can say hi properly.';
+    }
+    if (!formData.email.trim()) {
+      nextErrors.email = 'We need an email to reach back out.';
+    }
+    if (!formData.consent) {
+      nextErrors.consent = 'Please confirm the consent checkbox to continue.';
+    }
+    return nextErrors;
+  };
+
+  // Validate format (only show after submit attempt)
+  const validateFormat = () => {
+    const nextErrors = {};
+    if (formData.email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email.trim())) {
+      nextErrors.email = "This email doesn't look quite right.";
+    }
+    // Validate phone format if provided
+    if (formData.phone.trim()) {
+      // Remove formatting to check digits
+      const phoneDigits = formData.phone.replace(/[^\d+]/g, '');
+      // Should start with +49 and have at least 11 digits total (country code + number)
+      if (!phoneDigits.startsWith('+49') || phoneDigits.length < 12) {
+        nextErrors.phone = 'Please enter a valid German phone number (+49 XXX XXXXXXX).';
+      }
+    }
+    return nextErrors;
+  };
+
+  const handleChange = (field) => (event) => {
+    if (field === 'phone') {
+      const rawValue = event.target.value;
+      const formatted = formatGermanPhone(rawValue);
+      setFormData((prev) => ({ ...prev, [field]: formatted }));
+      // Clear phone error when user starts typing
+      if (errors.phone) {
+        setErrors((prev) => {
+          const next = { ...prev };
+          delete next.phone;
+          return next;
+        });
+      }
+    } else {
+      const value = field === 'consent' ? event.target.checked : event.target.value;
+      setFormData((prev) => ({ ...prev, [field]: value }));
+      // Clear field error when user starts typing
+      if (errors[field]) {
+        setErrors((prev) => {
+          const next = { ...prev };
+          delete next[field];
+          return next;
+        });
+      }
+    }
+  };
+
+  const handleSubmit = async (event) => {
+    event.preventDefault();
+    setHasAttemptedSubmit(true);
+    
+    // Check for empty required fields
+    const emptyErrors = validateEmpty();
+    
+    // Check for format errors
+    const formatErrors = validateFormat();
+    
+    // Combine all errors
+    const allErrors = { ...emptyErrors, ...formatErrors };
+    setErrors(allErrors);
+
+    // Only proceed if there are no errors at all
+    if (Object.keys(allErrors).length === 0) {
+      setIsSubmitting(true);
+      
+      const payload = {
+        full_name: formData.fullName.trim(),
+        email: formData.email.trim().toLowerCase(),
+        phone: formData.phone.trim() || null,
+        referral: formData.referral,
+        consent: formData.consent,
+      };
+      
+      try {
+        const { data, error } = await supabase
+          .from('signups')
+          .insert([payload])
+          .select();
+
+        if (error) {
+          // Handle other errors
+          setErrors({
+            email: 'Something went wrong. Please try again.',
+          });
+          setIsSubmitting(false);
+          return;
+        }
+
+        // Success - show success message
+        setSubmitted(true);
+        setFormData(initialForm);
+        setIsSubmitting(false);
+      } catch (err) {
+        // Handle unexpected errors (network issues, etc.)
+        setErrors({
+          email: 'Something went wrong. Please try again.',
+        });
+        setIsSubmitting(false);
+      }
+    }
+  };
+
+  return (
+    <Dialog open={isOpen} onClose={onClose} className="relative z-50">
+      <motion.div
+        className="fixed inset-0 bg-slate-950/80 backdrop-blur-md"
+        style={{ willChange: 'opacity' }}
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        transition={{ duration: 0.35, ease: 'easeOut' }}
+        onClick={onClose}
+      />
+
+      <div className="fixed inset-0 overflow-y-auto" onClick={onClose}>
+        <div className="flex min-h-full items-center justify-center px-6 py-16">
+          <motion.div
+            style={{ willChange: 'transform, opacity' }}
+            initial={{ opacity: 0, scale: 0.96, y: 12 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.96, y: 12 }}
+            transition={{ duration: 0.3, ease: 'easeOut' }}
+            className="glass-card relative w-full max-w-lg overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="relative">
+              {submitted && (
+                <button
+                  type="button"
+                  onClick={onClose}
+                  aria-label="Close"
+                  className="absolute top-0 right-0 h-8 w-8 flex items-center justify-center rounded-full border border-white/20 bg-white/5 text-white/70 transition-all duration-200 hover:border-white/30 hover:bg-white/10 hover:text-white"
+                >
+                  <svg
+                    width="24"
+                    height="24"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    aria-hidden="true"
+                  >
+                    <path d="M18 6L6 18M6 6l12 12" />
+                  </svg>
+                </button>
+              )}
+              <Dialog.Title className={`heading-3 ${submitted ? 'pr-12' : ''}`}>
+                {submitted ? "You're on the list" : "Join Blau Tech"}
+              </Dialog.Title>
+            </div>
+            {!submitted && (
+              <Dialog.Description className="body-subtle mt-4">
+                Join our community to get notified about upcoming events, hackathons, scholarships, and opportunities across Bavaria&rsquo;s tech ecosystem.
+              </Dialog.Description>
+            )}
+
+            {submitted ? (
+              <motion.div
+                className="mt-3 flex flex-col gap-6"
+                style={{ willChange: 'opacity' }}
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ duration: 0.35, ease: 'easeOut' }}
+              >
+                <p className="body-subtle">
+                  In the meanwhile, follow our other channels:
+                </p>
+                <div className="flex items-center justify-center gap-8">
+                  <svg width="0" height="0" style={{ position: 'absolute' }}>
+                    <defs>
+                      <linearGradient id="linkedin-gradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                        <stop offset="0%" stopColor="#B4D2F0" />
+                        <stop offset="100%" stopColor="#96BEE6" />
+                      </linearGradient>
+                    </defs>
+                  </svg>
+                  <a
+                    href="https://www.linkedin.com/company/blau-tech/"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-2 transition-opacity duration-300 hover:opacity-80"
+                  >
+                    <svg
+                      className="w-[96px] h-[96px]"
+                      fill="url(#linkedin-gradient)"
+                      viewBox="0 0 24 24"
+                      aria-hidden="true"
+                    >
+                      <path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433c-1.144 0-2.063-.926-2.063-2.065 0-1.138.92-2.063 2.063-2.063 1.14 0 2.064.925 2.064 2.063 0 1.139-.925 2.065-2.064 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/>
+                    </svg>
+                  </a>
+                  <a
+                    href="https://chat.whatsapp.com/DC8WPpK3MA4EC1FyzXqIxt"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-2 transition-opacity duration-300 hover:opacity-80"
+                  >
+                    <svg
+                      className="w-[96px] h-[96px]"
+                      fill="url(#linkedin-gradient)"
+                      viewBox="0 0 4096 4096"
+                      aria-hidden="true"
+                    >
+                      <path d="m 257.38881,3845.7001 c 0.3192,-1.2101 57.2467,-209.1359 126.5054,-462.0574 l 125.925,-459.8573 -11.2509,-20.1427 C 324.68911,2592.3438 248.65281,2240.3789 278.07501,1883 c 26.1291,-317.3786 138.1019,-622.9305 323.705,-883.32767 86.1366,-120.8479 188.3312,-232.1147 301.107,-327.8373 198.66589,-168.6251 431.02299,-291.589 680.77699,-360.26868 274.4316,-75.46576 567.8629,-83.57099 849.336,-23.46056 292.9518,62.56178 567.1027,200.17464 793.3932,398.25174 40.2791,35.2573 90.8911,83.9815 127.3938,122.6425 143.7853,152.2865 260.2504,329.34237 341.7697,519.57507 114.5482,267.3082 161.3424,557.6541 137.3829,852.4249 -30.7252,378.009 -183.1288,736.9627 -435.404,1025.5 -49.1545,56.22 -112.8156,119.8811 -169.0356,169.0356 -95.6682,83.6451 -199.0818,156.4182 -310.127,218.2392 -213.2606,118.7264 -452.5785,192.7901 -695.373,215.2028 -60.7212,5.6053 -101.0846,7.393 -167,7.3966 -66.8172,0 -108.1559,-1.8261 -168,-7.4361 -181.6761,-17.0312 -362.2134,-62.5811 -529.0289,-133.4749 -45.3222,-19.2612 -103.1004,-46.8105 -140.4711,-66.9781 l -16,-8.6347 -6,1.5117 c -10.6149,2.6742 -925.74729,242.6661 -932.84589,244.6372 l -6.8459,1.9009 z M 2110,3514.9981 c 244.5536,-9.8117 473.0148,-75.3257 682.3545,-195.6733 153.6552,-88.3351 290.9206,-204.0764 404.8001,-341.3248 166.7269,-200.9407 278.1489,-443.9255 320.7593,-699.5 8.6474,-51.8668 13.6805,-95.2527 17.6913,-152.5 2.1321,-30.4336 3.0096,-123.4088 1.482,-157.0404 -7.8349,-172.4924 -42.2339,-332.9676 -104.9847,-489.7648 -146.447,-365.9314 -441.333,-664.69567 -806.1391,-816.74107 -143.642,-59.8677 -297.2759,-96.7166 -453.9634,-108.8824 -42.2664,-3.2817 -62.9437,-3.9936 -116,-3.9936 -52.9593,0 -73.7454,0.7147 -115.5,3.9714 -391.3108,30.5208 -753.6792,215.0841 -1011.04579,514.95087 -122.229,142.4133 -217.8609,309.8818 -278.0984,487 -42.1633,123.9742 -66.3104,245.5735 -75.9565,382.5 -2.1364,30.3248 -3.03,125.5936 -1.4888,158.7087 9.303,199.8909 55.2469,386.9773 139.054,566.2375 26.6294,56.9592 54.1402,106.5932 96.6691,174.4069 13.4015,21.3691 24.3664,39.4756 24.3664,40.2366 0,0.7609 -33.5282,123.8614 -74.507,273.5566 -40.9789,149.6951 -74.3201,272.3599 -74.0917,272.5884 0.2285,0.2284 126.4857,-32.6582 280.5716,-73.0814 l 280.15629,-73.4967 34.1854,20.2362 c 56.5358,33.4667 76.5827,44.5016 118.1854,65.0554 190.4963,94.1146 396.318,145.6984 610,152.8804 21.7467,0.7309 79.7515,0.5421 101.5,-0.3305 z m 380.6971,-626.0831 c -40.6433,-1.7782 -88.7622,-9.4144 -125.4248,-19.9042 -44.8619,-12.8359 -129.7654,-42.0313 -187.781,-64.5715 -123.6316,-48.0334 -204.2324,-89.2056 -300.9315,-153.7207 -134.2771,-89.586 -268.9523,-211.5173 -392.1757,-355.0653 -48.8335,-56.8881 -93.8232,-114.7464 -138.6539,-178.3134 -8.4715,-12.0119 -20.0128,-28.1399 -25.6473,-35.8399 -58.7558,-80.2939 -110.1226,-178.1261 -138.6133,-264 -27.6549,-83.3548 -36.6566,-153.4071 -29.919,-232.8312 8.6048,-101.4349 43.8473,-190.4017 105.8337,-267.1688 18.6597,-23.109 53.662,-60.7407 65.7332,-70.671 22.6625,-18.643 45.4933,-29.7734 73.8825,-36.019 10.1387,-2.2305 11.9452,-2.3035 52.5,-2.1197 23.1,0.1047 53.25,0.6051 67,1.1121 23.2063,0.8556 25.5713,1.1156 32.9619,3.6237 20.312,6.8932 36.713,24.3358 52.0147,55.3181 3.4649,7.0157 22.3806,51.9058 42.0347,99.7558 59.78,145.5404 79.8826,194.0532 92.0446,222.1265 18.4935,42.6886 20.2466,47.2316 21.9011,56.7545 2.3859,13.7325 1.8031,23.6047 -2.1323,36.119 -3.0293,9.6332 -24.0903,50.8967 -32.1552,63 -10.1107,15.1733 -64.9395,81.1036 -83.0265,99.8374 -16.4488,17.0369 -22.0688,24.193 -26.7635,34.0787 -6.5743,13.8438 -6.8126,27.2076 -0.7753,43.4953 5.0616,13.6555 42.2308,73.0521 71.7071,114.5886 81.8366,115.3198 165.4736,201.8962 269.6887,279.1665 74.511,55.2462 144.6594,95.1755 239.5,136.3262 10.45,4.5342 25.525,11.287 33.5,15.0063 22.4095,10.4512 34.3078,13.951 47.5399,13.9836 14.0419,0.035 27.618,-5.725 39.5638,-16.7849 7.3175,-6.7749 31.8271,-35.0568 66.9009,-77.1977 36.7388,-44.1414 66.5227,-82.2379 82.48,-105.5 18.6269,-27.1538 36.5599,-36.9199 61.9137,-33.7176 20.4028,2.5769 42.6505,10.9766 100.6017,37.9826 73.1069,34.0687 281.5941,135.8356 301,146.9243 19.0376,10.8782 27.3897,19.7084 30.5612,32.3107 2.2116,8.7878 3.088,46.1677 1.5049,64.1831 -3.4035,38.7296 -12.3143,80.9829 -25.7956,122.3169 -7.3465,22.5247 -11.3678,31.8157 -19.6475,45.3945 -17.0147,27.9041 -47.9879,59.977 -84.123,87.1099 -57.1437,42.9076 -135.4183,81.311 -188.5572,92.5107 -21.9078,4.6173 -62.3815,9.0038 -96.4428,10.4524 -26.0049,1.1059 -27.3554,1.1046 -53.8029,-0.053 z"/>
+                    </svg>
+                  </a>
+                </div>
+                <p className="body-subtle">
+                  Thank you! Let&rsquo;s build Bayern&rsquo;s community together.
+                </p>
+              </motion.div>
+            ) : (
+              <motion.form
+                onSubmit={handleSubmit}
+                noValidate
+                className="mt-8 grid gap-6"
+                style={{ willChange: 'transform, opacity' }}
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.35, ease: 'easeOut' }}
+              >
+                <div className="grid gap-2 text-sm">
+                  <label htmlFor="fullName" className="label-form">
+                    Full Name
+                  </label>
+                  <input
+                    id="fullName"
+                    type="text"
+                    value={formData.fullName}
+                    onChange={handleChange('fullName')}
+                    className="form-field"
+                    placeholder="Max Mustermann"
+                    required
+                  />
+                  {errors.fullName && <p className="body-subtle !text-sky-300">{errors.fullName}</p>}
+                </div>
+
+                <div className="grid gap-2 text-sm">
+                  <label htmlFor="email" className="label-form">
+                    Email Address
+                  </label>
+                  <input
+                    id="email"
+                    type="email"
+                    value={formData.email}
+                    onChange={handleChange('email')}
+                    className="form-field"
+                    placeholder="you@mail.com"
+                    required
+                  />
+                  {errors.email && (errors.email === 'We need an email to reach back out.' || hasAttemptedSubmit) && <p className="body-subtle !text-sky-300">{errors.email}</p>}
+                </div>
+
+                <div className="grid gap-2 text-sm">
+                  <label htmlFor="phone" className="label-form">
+                    Phone Number <span className="text-white/50">(optional)</span>
+                  </label>
+                  <input
+                    id="phone"
+                    type="tel"
+                    value={formData.phone}
+                    onChange={handleChange('phone')}
+                    className="form-field"
+                    placeholder="+49 123 456 789"
+                  />
+                  {errors.phone && hasAttemptedSubmit && <p className="body-subtle !text-sky-300">{errors.phone}</p>}
+                </div>
+
+                <div className="grid gap-2 text-sm">
+                  <label htmlFor="referral" className="label-form">
+                    Where did you hear about us?
+                  </label>
+                  <div className="relative">
+                    <select
+                      id="referral"
+                      value={formData.referral}
+                      onChange={handleChange('referral')}
+                      className="form-field appearance-none pr-10"
+                    >
+                      {referralOptions.map((option) => (
+                        <option key={option} value={option} className="bg-slate-900">
+                          {option}
+                        </option>
+                      ))}
+                    </select>
+                    <span className="pointer-events-none absolute inset-y-0 right-4 flex items-center text-white/50">⌄</span>
+                  </div>
+                </div>
+
+                <label className="flex items-start gap-3 text-sm text-slate-200/80">
+                  <input
+                    type="checkbox"
+                    checked={formData.consent}
+                    onChange={handleChange('consent')}
+                    className="form-checkbox mt-0.5"
+                    required
+                  />
+                  <span>I understand that I may receive emails and can unsubscribe at any time.</span>
+                </label>
+                {errors.consent && <p className="-mt-3 body-subtle !text-sky-300">{errors.consent}</p>}
+
+                <div className="flex items-center justify-between gap-4 pt-2">
+                  <button
+                    type="button"
+                    onClick={onClose}
+                    className="btn-secondary"
+                  >
+                    Close
+                  </button>
+                  <motion.button
+                    type="submit"
+                    disabled={!isFormValid() || isSubmitting}
+                    whileHover={isFormValid() && !isSubmitting ? { scale: 1.05, y: -2 } : {}}
+                    whileTap={isFormValid() && !isSubmitting ? { scale: 0.97 } : {}}
+                    className={`btn-primary ${
+                      !isFormValid() || isSubmitting ? 'cursor-not-allowed opacity-50' : ''
+                    }`}
+                  >
+                    <span>{isSubmitting ? 'Submitting...' : 'Join the Community'}</span>
+                  </motion.button>
+                </div>
+              </motion.form>
+            )}
+          </motion.div>
+        </div>
+      </div>
+    </Dialog>
+  );
+};
+
+export default JoinModal;
+
