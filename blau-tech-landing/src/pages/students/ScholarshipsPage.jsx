@@ -1,51 +1,75 @@
 import { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Dialog } from '@headlessui/react';
-import { CalendarIcon, MapPinIcon, ClockIcon, LinkIcon, UserGroupIcon, SparklesIcon, XMarkIcon, BanknotesIcon } from '@heroicons/react/24/outline';
+import { CalendarIcon, MapPinIcon, ClockIcon, LinkIcon, UserGroupIcon, SparklesIcon, XMarkIcon, BanknotesIcon, AcademicCapIcon, BookOpenIcon, MagnifyingGlassIcon } from '@heroicons/react/24/outline';
 import { supabase } from '../../lib/supabase';
 
 const ScholarshipsPage = () => {
   const [scholarships, setScholarships] = useState([]);
+  const [allScholarships, setAllScholarships] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [selectedScholarship, setSelectedScholarship] = useState(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
 
   const fetchScholarships = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
       
-      // Fetch scholarships by filtering name for 'scholarship' or 'stipend'
-      // Note: If you add a 'type' column to the events table in the future,
-      // you can update this query to use: .eq('type', 'scholarship')
+      // Fetch from scholarships table
       const { data, error: fetchError } = await supabase
-        .from('events')
+        .from('scholarships')
         .select('*')
-        .or('name.ilike.%scholarship%,name.ilike.%stipend%,description.ilike.%scholarship%,description.ilike.%stipend%')
-        .order('start_date', { ascending: true });
+        .order('created_at', { ascending: false });
 
-      if (fetchError) throw fetchError;
+      if (fetchError) {
+        console.error('Supabase error:', fetchError);
+        throw fetchError;
+      }
 
-      const transformedScholarships = (data || []).map(scholarship => ({
-        id: scholarship.id,
-        name: scholarship.name,
-        type: 'scholarship',
-        date: scholarship.start_date || null,
-        time: scholarship.start_time || null,
-        description: scholarship.description || null,
-        link: scholarship.link || null,
-        organizer: scholarship.organisers || null,
-        location: scholarship.location || null,
-        format: scholarship.format || null,
-        isHighlight: scholarship.is_highlight || false,
-        createdAt: scholarship.created_at,
-      }));
+      console.log('Raw scholarships data:', data);
+      console.log('Number of scholarships:', data?.length || 0);
 
+      // Helper function to parse arrays (they might be JSON strings or already arrays)
+      const parseArray = (value) => {
+        if (!value) return [];
+        if (Array.isArray(value)) return value;
+        if (typeof value === 'string') {
+          try {
+            const parsed = JSON.parse(value);
+            return Array.isArray(parsed) ? parsed : [];
+          } catch {
+            return [];
+          }
+        }
+        return [];
+      };
+
+      const transformedScholarships = (data || []).map(scholarship => {
+        console.log('Processing scholarship:', scholarship);
+        return {
+          id: scholarship.id,
+          title: scholarship.title,
+          provider: scholarship.provider,
+          shortDescription: scholarship.short_description,
+          url: scholarship.url,
+          deadline: scholarship.deadline,
+          studyLevel: parseArray(scholarship.study_level),
+          fieldsOfStudy: parseArray(scholarship.fields_of_study),
+          isHighlight: scholarship.is_highlight || false,
+          createdAt: scholarship.created_at,
+          updatedAt: scholarship.updated_at,
+        };
+      });
+
+      console.log('Transformed scholarships:', transformedScholarships);
+      setAllScholarships(transformedScholarships);
       setScholarships(transformedScholarships);
     } catch (err) {
       console.error('Error fetching scholarships:', err);
-      setError('Failed to load scholarships. Please try again later.');
+      setError(`Failed to load scholarships: ${err.message || 'Unknown error'}`);
     } finally {
       setLoading(false);
     }
@@ -62,7 +86,7 @@ const ScholarshipsPage = () => {
         {
           event: '*',
           schema: 'public',
-          table: 'events',
+          table: 'scholarships',
         },
         () => {
           fetchScholarships();
@@ -74,6 +98,33 @@ const ScholarshipsPage = () => {
       supabase.removeChannel(channel);
     };
   }, [fetchScholarships]);
+
+  // Filter scholarships based on search query
+  useEffect(() => {
+    if (!searchQuery.trim()) {
+      setScholarships(allScholarships);
+      return;
+    }
+
+    const query = searchQuery.toLowerCase();
+    const filtered = allScholarships.filter(scholarship => {
+      const title = (scholarship.title || '').toLowerCase();
+      const provider = (scholarship.provider || '').toLowerCase();
+      const description = (scholarship.shortDescription || '').toLowerCase();
+      const studyLevel = (scholarship.studyLevel || []).join(' ').toLowerCase();
+      const fieldsOfStudy = (scholarship.fieldsOfStudy || []).join(' ').toLowerCase();
+
+      return (
+        title.includes(query) ||
+        provider.includes(query) ||
+        description.includes(query) ||
+        studyLevel.includes(query) ||
+        fieldsOfStudy.includes(query)
+      );
+    });
+
+    setScholarships(filtered);
+  }, [searchQuery, allScholarships]);
 
   const formatDate = (dateString) => {
     if (!dateString) return 'Date TBA';
@@ -115,7 +166,11 @@ const ScholarshipsPage = () => {
     return (
       <div className="section-container">
         <div className="glass-card text-center">
-          <p className="body-section text-red-400">{error}</p>
+          <h3 className="heading-3 mb-4 text-red-400">Error Loading Scholarships</h3>
+          <p className="body-section text-red-400 mb-4">{error}</p>
+          <p className="body-subtle text-white/60 mb-4">
+            Please check the browser console for more details.
+          </p>
           <button
             onClick={fetchScholarships}
             className="btn-secondary mt-4"
@@ -130,15 +185,34 @@ const ScholarshipsPage = () => {
   if (scholarships.length === 0) {
     return (
       <div className="section-container">
+        {/* Search Bar */}
+        <div className="mb-8">
+          <div className="relative">
+            <MagnifyingGlassIcon className="absolute left-4 top-1/2 transform -translate-y-1/2 h-6 w-6 text-white/50" />
+            <input
+              type="text"
+              placeholder="Search scholarships by title, provider, description, study level, or field..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full pl-12 pr-4 py-4 bg-white/5 border border-white/20 rounded-lg text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-yellow-400/50 focus:border-yellow-400/50 transition-all"
+            />
+          </div>
+        </div>
+
         <div className="glass-card text-center">
           <div className="mb-4 flex justify-center">
             <div className="icon-bubble">
               <BanknotesIcon className="h-8 w-8 text-yellow-300" />
             </div>
           </div>
-          <h3 className="heading-3 mb-4">No Scholarships Found</h3>
+          <h3 className="heading-3 mb-4">
+            {searchQuery ? 'No Scholarships Found' : 'No Scholarships Available'}
+          </h3>
           <p className="body-section">
-            There are no scholarships available at the moment. Check back soon!
+            {searchQuery 
+              ? `No scholarships match your search "${searchQuery}". Try a different search term.`
+              : 'There are no scholarships available at the moment. Check back soon!'
+            }
           </p>
         </div>
       </div>
@@ -148,48 +222,73 @@ const ScholarshipsPage = () => {
   return (
     <>
       <div className="section-container">
-        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+        {/* Search Bar */}
+        <div className="mb-8">
+          <div className="relative">
+            <MagnifyingGlassIcon className="absolute left-4 top-1/2 transform -translate-y-1/2 h-6 w-6 text-white/50" />
+            <input
+              type="text"
+              placeholder="Search scholarships by title, provider, description, study level, or field..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full pl-12 pr-4 py-4 bg-white/5 border border-white/20 rounded-lg text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-yellow-400/50 focus:border-yellow-400/50 transition-all"
+            />
+          </div>
+          {searchQuery && (
+            <p className="mt-2 text-sm text-white/60">
+              Found {scholarships.length} scholarship{scholarships.length !== 1 ? 's' : ''}
+            </p>
+          )}
+        </div>
+
+        <div className="flex flex-col gap-6">
           {scholarships.map((scholarship, index) => (
             <motion.div
               key={scholarship.id}
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.4, delay: index * 0.05 }}
-              className="glass-card group relative overflow-hidden cursor-pointer border-yellow-400/20 hover:border-yellow-400/40"
+              className="glass-card group relative overflow-hidden cursor-pointer border-yellow-400/20 hover:border-yellow-400/40 p-8"
               onClick={() => {
                 setSelectedScholarship(scholarship);
                 setIsModalOpen(true);
               }}
             >
-              <div className="flex items-start gap-3 mb-4">
-                <div className="icon-bubble bg-yellow-500/20 border-yellow-400/30">
-                  <SparklesIcon className="h-6 w-6 text-yellow-300" />
+              <div className="flex items-start gap-4 mb-6">
+                <div className="icon-bubble bg-yellow-500/20 border-yellow-400/30 flex-shrink-0">
+                  <SparklesIcon className="h-8 w-8 text-yellow-300" />
                 </div>
-                <h3 className="heading-3 flex-1">{scholarship.name}</h3>
+                <h3 className="heading-2 flex-1">{scholarship.title}</h3>
               </div>
               
-              <div className="space-y-2">
-                {scholarship.date && (
-                  <div className="flex items-center gap-2 text-sm text-white/70">
-                    <CalendarIcon className="h-4 w-4 flex-shrink-0" />
-                    <span>Deadline: {formatDate(scholarship.date)}</span>
+              <div className="space-y-3">
+                {scholarship.deadline && (
+                  <div className="flex items-center gap-3 text-base text-white/80">
+                    <CalendarIcon className="h-5 w-5 flex-shrink-0 text-yellow-300" />
+                    <span className="font-medium">Deadline: {formatDate(scholarship.deadline)}</span>
                   </div>
                 )}
-                {scholarship.location && (
-                  <div className="flex items-center gap-2 text-sm text-white/70">
-                    <MapPinIcon className="h-4 w-4 flex-shrink-0" />
-                    <span>{scholarship.location}</span>
+                {scholarship.provider && (
+                  <div className="flex items-center gap-3 text-base text-white/80">
+                    <UserGroupIcon className="h-5 w-5 flex-shrink-0 text-yellow-300" />
+                    <span className="font-medium">By {scholarship.provider}</span>
                   </div>
                 )}
-                {scholarship.organizer && (
-                  <div className="flex items-center gap-2 text-sm text-white/70">
-                    <UserGroupIcon className="h-4 w-4 flex-shrink-0" />
-                    <span>By {scholarship.organizer}</span>
+                {scholarship.studyLevel && scholarship.studyLevel.length > 0 && (
+                  <div className="flex items-center gap-3 text-base text-white/80">
+                    <AcademicCapIcon className="h-5 w-5 flex-shrink-0 text-yellow-300" />
+                    <span className="font-medium">{scholarship.studyLevel.join(', ')}</span>
                   </div>
                 )}
-                {scholarship.description && (
-                  <p className="text-sm text-white/60 line-clamp-2 mt-3">
-                    {scholarship.description}
+                {scholarship.fieldsOfStudy && scholarship.fieldsOfStudy.length > 0 && (
+                  <div className="flex items-center gap-3 text-base text-white/80">
+                    <BookOpenIcon className="h-5 w-5 flex-shrink-0 text-yellow-300" />
+                    <span className="font-medium">{scholarship.fieldsOfStudy.join(', ')}</span>
+                  </div>
+                )}
+                {scholarship.shortDescription && (
+                  <p className="text-base text-white/70 line-clamp-3 mt-4 leading-relaxed">
+                    {scholarship.shortDescription}
                   </p>
                 )}
               </div>
@@ -258,68 +357,67 @@ const ScholarshipsPage = () => {
                         <SparklesIcon className="h-6 w-6 text-yellow-300" />
                       </div>
                       <Dialog.Title className="heading-3 flex-1">
-                        {selectedScholarship.name}
+                        {selectedScholarship.title}
                       </Dialog.Title>
                     </div>
                   </div>
 
                   <div className="space-y-6">
                     <div className="space-y-4">
-                      {selectedScholarship.date && (
+                      {selectedScholarship.deadline && (
                         <div className="flex items-start gap-3">
                           <ClockIcon className="h-5 w-5 text-yellow-300 flex-shrink-0 mt-0.5" />
                           <div>
                             <p className="label-form text-xs mb-1">Application Deadline</p>
                             <p className="body-section">
-                              {formatDate(selectedScholarship.date)}
-                              {selectedScholarship.time && ` at ${selectedScholarship.time}`}
+                              {formatDate(selectedScholarship.deadline)}
                             </p>
                           </div>
                         </div>
                       )}
 
-                      {selectedScholarship.location && (
-                        <div className="flex items-start gap-3">
-                          <MapPinIcon className="h-5 w-5 text-yellow-300 flex-shrink-0 mt-0.5" />
-                          <div>
-                            <p className="label-form text-xs mb-1">Location</p>
-                            <p className="body-section">{selectedScholarship.location}</p>
-                          </div>
-                        </div>
-                      )}
-
-                      {selectedScholarship.organizer && (
+                      {selectedScholarship.provider && (
                         <div className="flex items-start gap-3">
                           <UserGroupIcon className="h-5 w-5 text-yellow-300 flex-shrink-0 mt-0.5" />
                           <div>
                             <p className="label-form text-xs mb-1">Provided By</p>
-                            <p className="body-section">{selectedScholarship.organizer}</p>
+                            <p className="body-section">{selectedScholarship.provider}</p>
                           </div>
                         </div>
                       )}
 
-                      {selectedScholarship.format && (
+                      {selectedScholarship.studyLevel && selectedScholarship.studyLevel.length > 0 && (
                         <div className="flex items-start gap-3">
-                          <CalendarIcon className="h-5 w-5 text-yellow-300 flex-shrink-0 mt-0.5" />
+                          <AcademicCapIcon className="h-5 w-5 text-yellow-300 flex-shrink-0 mt-0.5" />
                           <div>
-                            <p className="label-form text-xs mb-1">Format</p>
-                            <p className="body-section">{selectedScholarship.format}</p>
+                            <p className="label-form text-xs mb-1">Study Level</p>
+                            <p className="body-section">{selectedScholarship.studyLevel.join(', ')}</p>
+                          </div>
+                        </div>
+                      )}
+
+                      {selectedScholarship.fieldsOfStudy && selectedScholarship.fieldsOfStudy.length > 0 && (
+                        <div className="flex items-start gap-3">
+                          <BookOpenIcon className="h-5 w-5 text-yellow-300 flex-shrink-0 mt-0.5" />
+                          <div>
+                            <p className="label-form text-xs mb-1">Fields of Study</p>
+                            <p className="body-section">{selectedScholarship.fieldsOfStudy.join(', ')}</p>
                           </div>
                         </div>
                       )}
                     </div>
 
-                    {selectedScholarship.description && (
+                    {selectedScholarship.shortDescription && (
                       <div>
                         <p className="label-form text-xs mb-2">Description</p>
-                        <p className="body-section whitespace-pre-wrap">{selectedScholarship.description}</p>
+                        <p className="body-section whitespace-pre-wrap">{selectedScholarship.shortDescription}</p>
                       </div>
                     )}
 
-                    {selectedScholarship.link && (
+                    {selectedScholarship.url && (
                       <div className="pt-4 border-t border-white/10">
                         <a
-                          href={selectedScholarship.link}
+                          href={selectedScholarship.url}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="btn-primary inline-flex items-center gap-2"
