@@ -782,10 +782,10 @@ const HackathonsPage = () => {
                                       }`}
                                       title={hackathon.name}
                                     >
-                                      {isMultiDay && eventPosition === 'start' && (
+                                      {isMultiDay && hackathonPosition === 'start' && (
                                         <div className="absolute -left-1 top-1/2 -translate-y-1/2 w-2 h-2 rounded-full bg-white/40 border border-white/60"></div>
                                       )}
-                                      {isMultiDay && eventPosition === 'end' && (
+                                      {isMultiDay && hackathonPosition === 'end' && (
                                         <div className="absolute -right-1 top-1/2 -translate-y-1/2 w-2 h-2 rounded-full bg-white/40 border border-white/60"></div>
                                       )}
                                       <div className="font-medium line-clamp-1 sm:line-clamp-2 mb-0.5 relative z-10">
