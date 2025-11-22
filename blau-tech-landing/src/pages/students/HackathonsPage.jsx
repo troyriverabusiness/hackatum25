@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Dialog } from '@headlessui/react';
 import { CalendarIcon, MapPinIcon, ClockIcon, LinkIcon, UserGroupIcon, SparklesIcon, XMarkIcon, Squares2X2Icon, ChevronLeftIcon, ChevronRightIcon } from '@heroicons/react/24/outline';
@@ -15,8 +15,6 @@ const HackathonsPage = () => {
   const [selectedMonth, setSelectedMonth] = useState(null);
   const [selectedYear, setSelectedYear] = useState(null);
   const [selectedWeekStart, setSelectedWeekStart] = useState(null);
-  const [navbarHeight, setNavbarHeight] = useState(80);
-  const navbarRef = useRef(null);
 
   const fetchHackathons = useCallback(async () => {
     try {
@@ -81,45 +79,6 @@ const HackathonsPage = () => {
       supabase.removeChannel(channel);
     };
   }, [fetchHackathons]);
-
-  // Measure navbar height
-  useEffect(() => {
-    const measureNavbar = () => {
-      // Find the navbar header element
-      const navbar = document.querySelector('header.sticky');
-      if (navbar) {
-        const height = navbar.offsetHeight;
-        setNavbarHeight(height);
-      }
-    };
-
-    // Measure immediately
-    measureNavbar();
-    
-    // Measure on resize
-    window.addEventListener('resize', measureNavbar);
-    
-    // Measure after animations complete
-    const timeout = setTimeout(measureNavbar, 200);
-    
-    // Use MutationObserver to watch for navbar changes (e.g., mobile menu)
-    const observer = new MutationObserver(measureNavbar);
-    const navbar = document.querySelector('header.sticky');
-    if (navbar) {
-      observer.observe(navbar, { 
-        childList: true, 
-        subtree: true, 
-        attributes: true,
-        attributeFilter: ['class', 'style']
-      });
-    }
-
-    return () => {
-      window.removeEventListener('resize', measureNavbar);
-      clearTimeout(timeout);
-      observer.disconnect();
-    };
-  }, []);
 
   const formatDate = (dateString) => {
     if (!dateString) return 'Date TBA';
@@ -505,43 +464,33 @@ const HackathonsPage = () => {
 
   return (
     <>
-      {/* Sub-navbar for view toggle */}
-      <motion.div
-        ref={navbarRef}
-        initial={{ opacity: 0, y: -10 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.3 }}
-        className="sticky z-30 border-b border-white/10 bg-slate-950/95 backdrop-blur-xl -mt-24 sm:-mt-28 lg:-mt-32"
-        style={{ top: `${navbarHeight}px` }}
-      >
-        <div className="section-container">
-          <div className="flex items-center gap-4 py-3">
+      {view === 'calendar' ? (
+        <div className="w-full px-4 sm:px-6 mt-6">
+          {/* View toggle buttons */}
+          <div className="flex justify-end gap-2 mb-6 w-full max-w-7xl mx-auto">
             <button
               onClick={() => setView('timeline')}
-              className={`px-4 py-2 text-sm font-medium transition-all duration-200 ${
+              className={`flex items-center justify-center rounded-full border p-2.5 transition-all duration-200 ${
                 view === 'timeline'
-                  ? 'text-purple-300 border-b-2 border-purple-400'
-                  : 'text-white/60 hover:text-white/80'
+                  ? 'border-purple-400 bg-purple-400/20 text-purple-300'
+                  : 'border-white/20 bg-white/5 text-white/70 hover:border-white/30 hover:text-white'
               }`}
+              title="Timeline View"
             >
-              Timeline
+              <Squares2X2Icon className="h-5 w-5" />
             </button>
             <button
               onClick={() => setView('calendar')}
-              className={`px-4 py-2 text-sm font-medium transition-all duration-200 ${
+              className={`flex items-center justify-center rounded-full border p-2.5 transition-all duration-200 ${
                 view === 'calendar'
-                  ? 'text-purple-300 border-b-2 border-purple-400'
-                  : 'text-white/60 hover:text-white/80'
+                  ? 'border-purple-400 bg-purple-400/20 text-purple-300'
+                  : 'border-white/20 bg-white/5 text-white/70 hover:border-white/30 hover:text-white'
               }`}
+              title="Calendar View"
             >
-              Calendar
+              <CalendarIcon className="h-5 w-5" />
             </button>
           </div>
-        </div>
-      </motion.div>
-
-      {view === 'calendar' ? (
-        <div className="w-full px-4 sm:px-6 mt-6">
           <div className="glass-card p-4 sm:p-6 mb-6 w-full max-w-7xl mx-auto">
             {(() => {
               const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
@@ -877,6 +826,31 @@ const HackathonsPage = () => {
         </div>
       ) : (
         <div className="section-container mt-6">
+          {/* View toggle buttons */}
+          <div className="flex justify-end gap-2 mb-6">
+            <button
+              onClick={() => setView('timeline')}
+              className={`flex items-center justify-center rounded-full border p-2.5 transition-all duration-200 ${
+                view === 'timeline'
+                  ? 'border-purple-400 bg-purple-400/20 text-purple-300'
+                  : 'border-white/20 bg-white/5 text-white/70 hover:border-white/30 hover:text-white'
+              }`}
+              title="Timeline View"
+            >
+              <Squares2X2Icon className="h-5 w-5" />
+            </button>
+            <button
+              onClick={() => setView('calendar')}
+              className={`flex items-center justify-center rounded-full border p-2.5 transition-all duration-200 ${
+                view === 'calendar'
+                  ? 'border-purple-400 bg-purple-400/20 text-purple-300'
+                  : 'border-white/20 bg-white/5 text-white/70 hover:border-white/30 hover:text-white'
+              }`}
+              title="Calendar View"
+            >
+              <CalendarIcon className="h-5 w-5" />
+            </button>
+          </div>
           <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
             {hackathons.map((hackathon, index) => (
               <motion.div
