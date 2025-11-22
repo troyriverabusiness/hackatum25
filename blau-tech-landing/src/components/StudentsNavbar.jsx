@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { motion, useScroll, useTransform, AnimatePresence } from 'framer-motion';
 import { Link, NavLink, useLocation } from 'react-router-dom';
-import { Bars3Icon, XMarkIcon, CalendarIcon, BoltIcon, SparklesIcon, ClockIcon } from '@heroicons/react/24/outline';
+import { Bars3Icon, XMarkIcon, CalendarIcon, BoltIcon, SparklesIcon } from '@heroicons/react/24/outline';
 import watermarkSvg from '../../watermark.svg';
 
 const StudentsNavbar = () => {
@@ -20,12 +20,6 @@ const StudentsNavbar = () => {
   );
 
   const tabs = [
-    { 
-      key: 'for-you', 
-      label: 'For You', 
-      icon: ClockIcon, 
-      path: '/students/for-you' 
-    },
     { 
       key: 'events', 
       label: 'Events', 

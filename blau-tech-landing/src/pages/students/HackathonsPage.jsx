@@ -80,6 +80,49 @@ const HackathonsPage = () => {
     };
   }, [fetchHackathons]);
 
+  // Helper function to check if a hackathon is today or in the future
+  const isHackathonTodayOrFuture = (hackathon) => {
+    if (!hackathon.date) return true;
+    
+    try {
+      let hackathonDate;
+      if (hackathon.date.includes('/')) {
+        const [day, month, year] = hackathon.date.split('/');
+        hackathonDate = new Date(`${year}-${month}-${day}`);
+      } else {
+        hackathonDate = new Date(hackathon.date);
+      }
+      
+      if (isNaN(hackathonDate.getTime())) return true;
+      
+      hackathonDate.setHours(0, 0, 0, 0);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      return hackathonDate >= today;
+    } catch {
+      return true;
+    }
+  };
+
+  // Apply date filter only for timeline view (calendar shows all hackathons)
+  const filteredHackathons = view === 'timeline'
+    ? hackathons.filter(isHackathonTodayOrFuture)
+    : hackathons;
+
+  // Initialize selected month/year when switching to calendar view
+  useEffect(() => {
+    if (view === 'calendar') {
+      if (calendarView === 'month' && (selectedMonth === null || selectedYear === null)) {
+        const today = new Date();
+        setSelectedMonth(today.getMonth());
+        setSelectedYear(today.getFullYear());
+      } else if (calendarView === 'week' && selectedWeekStart === null) {
+        setSelectedWeekStart(getWeekStart(new Date()));
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [view, calendarView, filteredHackathons]);
+
   const formatDate = (dateString) => {
     if (!dateString) return 'Date TBA';
     try {
@@ -103,17 +146,106 @@ const HackathonsPage = () => {
     }
   };
 
-  // Get the default month/year to display (always current month)
-  const getDefaultMonthYear = (events) => {
-    const today = new Date();
-    const displayMonth = today.getMonth();
-    const displayYear = today.getFullYear();
-    
-    return { displayMonth, displayYear };
+  const formatTimelineDate = (dateString) => {
+    if (!dateString) return null;
+    try {
+      let date;
+      if (dateString.includes('/')) {
+        const [day, month, year] = dateString.split('/');
+        date = new Date(`${year}-${month}-${day}`);
+      } else {
+        date = new Date(dateString);
+      }
+      
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const hackathonDate = new Date(date);
+      hackathonDate.setHours(0, 0, 0, 0);
+      
+      const diffTime = hackathonDate - today;
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+      
+      const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+      const monthNames = ['JAN.', 'FEB.', 'MAR', 'APR.', 'MAY', 'JUN', 'JUL', 'AUG.', 'SEPT.', 'OCT.', 'NOV.', 'DEC.'];
+      
+      const dayName = dayNames[date.getDay()];
+      const day = date.getDate();
+      const month = monthNames[date.getMonth()];
+      
+      if (diffDays === 0) {
+        return { label: 'Today', sublabel: dayName, date: date };
+      } else if (diffDays === 1) {
+        return { label: 'Tomorrow', sublabel: dayName, date: date };
+      } else {
+        return { label: `${day}. ${month}`, sublabel: dayName, date: date };
+      }
+    } catch {
+      return null;
+    }
   };
 
-  // Helper function to get events for a specific date (handles multi-day events)
-  const getEventsForDate = (events, date) => {
+  const groupHackathonsByDate = (hackathons) => {
+    const grouped = {};
+    hackathons.forEach(hackathon => {
+      if (!hackathon.date) {
+        if (!grouped['no-date']) {
+          grouped['no-date'] = [];
+        }
+        grouped['no-date'].push(hackathon);
+        return;
+      }
+      
+      try {
+        let date;
+        if (hackathon.date.includes('/')) {
+          const [day, month, year] = hackathon.date.split('/');
+          date = new Date(`${year}-${month}-${day}`);
+        } else {
+          date = new Date(hackathon.date);
+        }
+        date.setHours(0, 0, 0, 0);
+        const dateKey = date.toISOString().split('T')[0];
+        
+        if (!grouped[dateKey]) {
+          grouped[dateKey] = [];
+        }
+        grouped[dateKey].push(hackathon);
+      } catch {
+        if (!grouped['no-date']) {
+          grouped['no-date'] = [];
+        }
+        grouped['no-date'].push(hackathon);
+      }
+    });
+    
+    const sortedDates = Object.keys(grouped)
+      .filter(key => key !== 'no-date')
+      .sort((a, b) => new Date(a) - new Date(b));
+    
+    const result = sortedDates.map(dateKey => ({
+      dateKey,
+      date: new Date(dateKey),
+      hackathons: grouped[dateKey].sort((a, b) => {
+        if (a.time && b.time) {
+          return a.time.localeCompare(b.time);
+        }
+        return 0;
+      })
+    }));
+    
+    if (grouped['no-date']) {
+      result.push({
+        dateKey: 'no-date',
+        date: null,
+        hackathons: grouped['no-date']
+      });
+    }
+    
+    return result;
+  };
+
+  // Helper function to get hackathons for a specific date (handles multi-day hackathons)
+  const getHackathonsForDate = (hackathons, date) => {
     const year = date.getFullYear();
     const month = date.getMonth();
     const day = date.getDate();
@@ -122,12 +254,12 @@ const HackathonsPage = () => {
     const currentDay = new Date(year, month, day);
     currentDay.setHours(0, 0, 0, 0);
     
-    return events.filter(event => {
-      if (!event.date) return false;
+    return hackathons.filter(hackathon => {
+      if (!hackathon.date) return false;
       try {
         // Parse start date
-        let eventStartDate;
-        const dateStr = String(event.date).trim();
+        let hackathonStartDate;
+        const dateStr = String(hackathon.date).trim();
         
         // Handle different date formats
         if (dateStr.includes('/')) {
@@ -135,7 +267,7 @@ const HackathonsPage = () => {
           if (parts.length === 3) {
             const [d, m, y] = parts.map(p => parseInt(p.trim(), 10));
             if (isNaN(d) || isNaN(m) || isNaN(y)) return false;
-            eventStartDate = new Date(y, m - 1, d);
+            hackathonStartDate = new Date(y, m - 1, d);
           } else {
             return false;
           }
@@ -144,31 +276,31 @@ const HackathonsPage = () => {
           const parts = dateOnly.split('-').map(p => parseInt(p.trim(), 10));
           if (parts.length === 3 && !parts.some(isNaN)) {
             const [y, m, d] = parts;
-            eventStartDate = new Date(y, m - 1, d);
+            hackathonStartDate = new Date(y, m - 1, d);
           } else {
-            eventStartDate = new Date(dateStr);
+            hackathonStartDate = new Date(dateStr);
           }
         } else {
-          eventStartDate = new Date(dateStr);
+          hackathonStartDate = new Date(dateStr);
         }
         
-        if (isNaN(eventStartDate.getTime())) {
+        if (isNaN(hackathonStartDate.getTime())) {
           return false;
         }
         
-        eventStartDate.setHours(0, 0, 0, 0);
+        hackathonStartDate.setHours(0, 0, 0, 0);
         
-        // Parse end date if it exists (for multi-day events like hackathons)
-        let eventEndDate = null;
-        if (event.endDate) {
-          const endDateStr = String(event.endDate).trim();
+        // Parse end date if it exists (for multi-day hackathons)
+        let hackathonEndDate = null;
+        if (hackathon.endDate) {
+          const endDateStr = String(hackathon.endDate).trim();
           
           if (endDateStr.includes('/')) {
             const parts = endDateStr.split('/');
             if (parts.length === 3) {
               const [d, m, y] = parts.map(p => parseInt(p.trim(), 10));
               if (!isNaN(d) && !isNaN(m) && !isNaN(y)) {
-                eventEndDate = new Date(y, m - 1, d);
+                hackathonEndDate = new Date(y, m - 1, d);
               }
             }
           } else if (endDateStr.includes('-')) {
@@ -176,32 +308,32 @@ const HackathonsPage = () => {
             const parts = dateOnly.split('-').map(p => parseInt(p.trim(), 10));
             if (parts.length === 3 && !parts.some(isNaN)) {
               const [y, m, d] = parts;
-              eventEndDate = new Date(y, m - 1, d);
+              hackathonEndDate = new Date(y, m - 1, d);
             } else {
-              eventEndDate = new Date(endDateStr);
+              hackathonEndDate = new Date(endDateStr);
             }
           } else {
-            eventEndDate = new Date(endDateStr);
+            hackathonEndDate = new Date(endDateStr);
           }
           
-          if (eventEndDate && !isNaN(eventEndDate.getTime())) {
-            eventEndDate.setHours(0, 0, 0, 0);
+          if (hackathonEndDate && !isNaN(hackathonEndDate.getTime())) {
+            hackathonEndDate.setHours(0, 0, 0, 0);
           } else {
-            eventEndDate = null;
+            hackathonEndDate = null;
           }
         }
         
-        // Check if current day falls within the event date range
-        if (eventEndDate) {
-          // Multi-day event: check if current day is between start and end (inclusive)
-          return currentDay >= eventStartDate && currentDay <= eventEndDate;
+        // Check if current day falls within the hackathon date range
+        if (hackathonEndDate) {
+          // Multi-day hackathon: check if current day is between start and end (inclusive)
+          return currentDay >= hackathonStartDate && currentDay <= hackathonEndDate;
         } else {
-          // Single-day event: check if it matches the start date
-          const eventYear = eventStartDate.getFullYear();
-          const eventMonth = eventStartDate.getMonth();
-          const eventDay = eventStartDate.getDate();
+          // Single-day hackathon: check if it matches the start date
+          const hackathonYear = hackathonStartDate.getFullYear();
+          const hackathonMonth = hackathonStartDate.getMonth();
+          const hackathonDay = hackathonStartDate.getDate();
           
-          return eventYear === year && eventMonth === month && eventDay === day;
+          return hackathonYear === year && hackathonMonth === month && hackathonDay === day;
         }
       } catch (err) {
         return false;
@@ -209,10 +341,10 @@ const HackathonsPage = () => {
     });
   };
 
-  // Helper function to sort events by time within a day
-  const sortEventsByTime = (events) => {
-    return [...events].sort((a, b) => {
-      // Events with time come first
+  // Helper function to sort hackathons by time within a day
+  const sortHackathonsByTime = (hackathons) => {
+    return [...hackathons].sort((a, b) => {
+      // Hackathons with time come first
       if (a.time && !b.time) return -1;
       if (!a.time && b.time) return 1;
       
@@ -242,7 +374,7 @@ const HackathonsPage = () => {
   };
 
   // Get calendar week view
-  const getCalendarWeek = (events, weekStartDate) => {
+  const getCalendarWeek = (hackathons, weekStartDate) => {
     let weekStart;
     if (weekStartDate) {
       weekStart = new Date(weekStartDate);
@@ -258,8 +390,8 @@ const HackathonsPage = () => {
     for (let i = 0; i < 7; i++) {
       const date = new Date(weekStart);
       date.setDate(weekStart.getDate() + i);
-      const dayEvents = getEventsForDate(events, date);
-      currentWeek.push({ day: date.getDate(), date, events: dayEvents });
+      const dayHackathons = getHackathonsForDate(hackathons, date);
+      currentWeek.push({ day: date.getDate(), date, events: dayHackathons });
     }
     
     calendar.push(currentWeek);
@@ -267,16 +399,16 @@ const HackathonsPage = () => {
     return { calendar, weekStart };
   };
 
-  const getCalendarMonth = (events, month, year) => {
+  const getCalendarMonth = (hackathons, month, year) => {
     // Use provided month/year or default
     let displayMonth, displayYear;
     if (month !== null && month !== undefined && year !== null && year !== undefined) {
       displayMonth = month;
       displayYear = year;
     } else {
-      const defaultMonthYear = getDefaultMonthYear(events);
-      displayMonth = defaultMonthYear.displayMonth;
-      displayYear = defaultMonthYear.displayYear;
+      const today = new Date();
+      displayMonth = today.getMonth();
+      displayYear = today.getFullYear();
     }
     
     // Get first day of month and number of days
@@ -299,8 +431,8 @@ const HackathonsPage = () => {
     // Add days of the month
     for (let day = 1; day <= daysInMonth; day++) {
       const date = new Date(displayYear, displayMonth, day);
-      const dayEvents = getEventsForDate(events, date);
-      currentWeek.push({ day, date, events: dayEvents });
+      const dayHackathons = getHackathonsForDate(hackathons, date);
+      currentWeek.push({ day, date, events: dayHackathons });
       
       // Start new week on Monday (7 days per week)
       if (currentWeek.length === 7) {
@@ -320,23 +452,23 @@ const HackathonsPage = () => {
     return { calendar, month: displayMonth, year: displayYear };
   };
 
-  // Helper function to determine event position in multi-day span
-  const getEventPosition = (event, currentDate) => {
-    if (!event.endDate) {
-      return 'single'; // Single day event
+  // Helper function to determine hackathon position in multi-day span
+  const getHackathonPosition = (hackathon, currentDate) => {
+    if (!hackathon.endDate) {
+      return 'single'; // Single day hackathon
     }
 
     try {
       // Parse start date
-      let eventStartDate;
-      const dateStr = String(event.date).trim();
+      let hackathonStartDate;
+      const dateStr = String(hackathon.date).trim();
       
       if (dateStr.includes('/')) {
         const parts = dateStr.split('/');
         if (parts.length === 3) {
           const [d, m, y] = parts.map(p => parseInt(p.trim(), 10));
           if (!isNaN(d) && !isNaN(m) && !isNaN(y)) {
-            eventStartDate = new Date(y, m - 1, d);
+            hackathonStartDate = new Date(y, m - 1, d);
           }
         }
       } else if (dateStr.includes('-')) {
@@ -344,24 +476,24 @@ const HackathonsPage = () => {
         const parts = dateOnly.split('-').map(p => parseInt(p.trim(), 10));
         if (parts.length === 3 && !parts.some(isNaN)) {
           const [y, m, d] = parts;
-          eventStartDate = new Date(y, m - 1, d);
+          hackathonStartDate = new Date(y, m - 1, d);
         } else {
-          eventStartDate = new Date(dateStr);
+          hackathonStartDate = new Date(dateStr);
         }
       } else {
-        eventStartDate = new Date(dateStr);
+        hackathonStartDate = new Date(dateStr);
       }
 
       // Parse end date
-      let eventEndDate;
-      const endDateStr = String(event.endDate).trim();
+      let hackathonEndDate;
+      const endDateStr = String(hackathon.endDate).trim();
       
       if (endDateStr.includes('/')) {
         const parts = endDateStr.split('/');
         if (parts.length === 3) {
           const [d, m, y] = parts.map(p => parseInt(p.trim(), 10));
           if (!isNaN(d) && !isNaN(m) && !isNaN(y)) {
-            eventEndDate = new Date(y, m - 1, d);
+            hackathonEndDate = new Date(y, m - 1, d);
           }
         }
       } else if (endDateStr.includes('-')) {
@@ -369,29 +501,29 @@ const HackathonsPage = () => {
         const parts = dateOnly.split('-').map(p => parseInt(p.trim(), 10));
         if (parts.length === 3 && !parts.some(isNaN)) {
           const [y, m, d] = parts;
-          eventEndDate = new Date(y, m - 1, d);
+          hackathonEndDate = new Date(y, m - 1, d);
         } else {
-          eventEndDate = new Date(endDateStr);
+          hackathonEndDate = new Date(endDateStr);
         }
       } else {
-        eventEndDate = new Date(endDateStr);
+        hackathonEndDate = new Date(endDateStr);
       }
 
-      if (!eventStartDate || !eventEndDate || isNaN(eventStartDate.getTime()) || isNaN(eventEndDate.getTime())) {
+      if (!hackathonStartDate || !hackathonEndDate || isNaN(hackathonStartDate.getTime()) || isNaN(hackathonEndDate.getTime())) {
         return 'single';
       }
 
       // Normalize dates
       currentDate.setHours(0, 0, 0, 0);
-      eventStartDate.setHours(0, 0, 0, 0);
-      eventEndDate.setHours(0, 0, 0, 0);
+      hackathonStartDate.setHours(0, 0, 0, 0);
+      hackathonEndDate.setHours(0, 0, 0, 0);
 
       // Check if current date matches start, end, or is in between
-      if (currentDate.getTime() === eventStartDate.getTime()) {
-        return eventStartDate.getTime() === eventEndDate.getTime() ? 'single' : 'start';
-      } else if (currentDate.getTime() === eventEndDate.getTime()) {
+      if (currentDate.getTime() === hackathonStartDate.getTime()) {
+        return hackathonStartDate.getTime() === hackathonEndDate.getTime() ? 'single' : 'start';
+      } else if (currentDate.getTime() === hackathonEndDate.getTime()) {
         return 'end';
-      } else if (currentDate > eventStartDate && currentDate < eventEndDate) {
+      } else if (currentDate > hackathonStartDate && currentDate < hackathonEndDate) {
         return 'middle';
       }
     } catch (err) {
@@ -401,26 +533,13 @@ const HackathonsPage = () => {
     return 'single';
   };
 
-  // Initialize selected month/year when switching to calendar view or when events change
-  useEffect(() => {
-    if (view === 'calendar') {
-      if (calendarView === 'month' && (selectedMonth === null || selectedYear === null)) {
-        const defaultMonthYear = getDefaultMonthYear(hackathons);
-        setSelectedMonth(defaultMonthYear.displayMonth);
-        setSelectedYear(defaultMonthYear.displayYear);
-      } else if (calendarView === 'week' && selectedWeekStart === null) {
-        setSelectedWeekStart(getWeekStart(new Date()));
-      }
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [view, calendarView, hackathons]);
 
   if (loading) {
     return (
       <div className="section-container">
         <div className="flex justify-center py-20">
           <div className="text-center">
-            <div className="mb-4 inline-block h-8 w-8 animate-spin rounded-full border-4 border-purple-400 border-t-transparent"></div>
+            <div className="mb-4 inline-block h-8 w-8 animate-spin rounded-full border-4 border-cyan-400 border-t-transparent"></div>
             <p className="body-subtle">Loading hackathons...</p>
           </div>
         </div>
@@ -450,7 +569,7 @@ const HackathonsPage = () => {
         <div className="glass-card text-center">
           <div className="mb-4 flex justify-center">
             <div className="icon-bubble">
-              <SparklesIcon className="h-8 w-8 text-purple-300" />
+              <SparklesIcon className="h-8 w-8 text-cyan-300" />
             </div>
           </div>
           <h3 className="heading-3 mb-4">No Hackathons Found</h3>
@@ -472,7 +591,7 @@ const HackathonsPage = () => {
               onClick={() => setView('timeline')}
               className={`flex items-center justify-center rounded-full border p-2.5 transition-all duration-200 ${
                 view === 'timeline'
-                  ? 'border-purple-400 bg-purple-400/20 text-purple-300'
+                  ? 'border-cyan-400 bg-cyan-400/20 text-cyan-300'
                   : 'border-white/20 bg-white/5 text-white/70 hover:border-white/30 hover:text-white'
               }`}
               title="Timeline View"
@@ -483,7 +602,7 @@ const HackathonsPage = () => {
               onClick={() => setView('calendar')}
               className={`flex items-center justify-center rounded-full border p-2.5 transition-all duration-200 ${
                 view === 'calendar'
-                  ? 'border-purple-400 bg-purple-400/20 text-purple-300'
+                  ? 'border-cyan-400 bg-cyan-400/20 text-cyan-300'
                   : 'border-white/20 bg-white/5 text-white/70 hover:border-white/30 hover:text-white'
               }`}
               title="Calendar View"
@@ -503,7 +622,7 @@ const HackathonsPage = () => {
                     onClick={() => setCalendarView('month')}
                     className={`flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-medium transition-all duration-200 ${
                       calendarView === 'month'
-                        ? 'border-purple-400 bg-purple-400/20 text-purple-300'
+                        ? 'border-cyan-400 bg-cyan-400/20 text-cyan-300'
                         : 'border-white/20 bg-white/5 text-white/70 hover:border-white/30 hover:text-white'
                     }`}
                   >
@@ -514,7 +633,7 @@ const HackathonsPage = () => {
                     onClick={() => setCalendarView('week')}
                     className={`flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-medium transition-all duration-200 ${
                       calendarView === 'week'
-                        ? 'border-purple-400 bg-purple-400/20 text-purple-300'
+                        ? 'border-cyan-400 bg-cyan-400/20 text-cyan-300'
                         : 'border-white/20 bg-white/5 text-white/70 hover:border-white/30 hover:text-white'
                     }`}
                   >
@@ -599,51 +718,51 @@ const HackathonsPage = () => {
                               key={`${day.day}-${weekIndex}`}
                               className={`min-h-[80px] sm:min-h-[120px] md:min-h-[150px] flex flex-col rounded-lg border p-1 sm:p-2 transition-all duration-200 ${
                                 isToday
-                                  ? 'border-purple-400 bg-purple-400/20'
+                                  ? 'border-cyan-400 bg-cyan-400/20'
                                   : 'border-white/10 bg-white/5 hover:border-white/20 hover:bg-white/10'
                               }`}
                             >
                               <div className={`text-xs sm:text-sm font-medium mb-1 sm:mb-2 flex-shrink-0 ${
-                                isToday ? 'text-purple-300' : 'text-white/70'
+                                isToday ? 'text-cyan-300' : 'text-white/70'
                               }`}>
                                 {day.day}
                               </div>
                               <div className="flex-1 space-y-1 sm:space-y-1.5 overflow-y-auto">
-                                {sortEventsByTime(day.events).slice(0, 3).map(hackathon => {
-                                  const eventPosition = getEventPosition(hackathon, new Date(day.date));
-                                  const isMultiDay = eventPosition !== 'single';
+                                {sortHackathonsByTime(day.events).slice(0, 3).map(hackathon => {
+                                  const hackathonPosition = getHackathonPosition(hackathon, new Date(day.date));
+                                  const isMultiDay = hackathonPosition !== 'single';
                                   
-                                  // Generate a consistent color hash for multi-day events
-                                  const getEventColorId = (eventId) => {
+                                  // Generate a consistent color hash for multi-day hackathons
+                                  const getHackathonColorId = (hackathonId) => {
                                     let hash = 0;
-                                    for (let i = 0; i < eventId.length; i++) {
-                                      hash = eventId.charCodeAt(i) + ((hash << 5) - hash);
+                                    for (let i = 0; i < hackathonId.length; i++) {
+                                      hash = hackathonId.charCodeAt(i) + ((hash << 5) - hash);
                                     }
                                     return Math.abs(hash) % 6; // 6 different color variants
                                   };
                                   
-                                  const colorId = isMultiDay ? getEventColorId(hackathon.id) : null;
+                                  const colorId = isMultiDay ? getHackathonColorId(hackathon.id) : null;
                                   const colorVariants = [
-                                    { bg: 'bg-purple-500/30', text: 'text-purple-200', textTime: 'text-purple-300/80', hover: 'hover:bg-purple-500/40', border: 'border-purple-400' },
+                                    { bg: 'bg-cyan-500/30', text: 'text-cyan-200', textTime: 'text-cyan-300/80', hover: 'hover:bg-cyan-500/40', border: 'border-cyan-400' },
                                     { bg: 'bg-sky-500/30', text: 'text-sky-200', textTime: 'text-sky-300/80', hover: 'hover:bg-sky-500/40', border: 'border-sky-400' },
-                                    { bg: 'bg-pink-500/30', text: 'text-pink-200', textTime: 'text-pink-300/80', hover: 'hover:bg-pink-500/40', border: 'border-pink-400' },
-                                    { bg: 'bg-orange-500/30', text: 'text-orange-200', textTime: 'text-orange-300/80', hover: 'hover:bg-orange-500/40', border: 'border-orange-400' },
+                                    { bg: 'bg-blue-500/30', text: 'text-blue-200', textTime: 'text-blue-300/80', hover: 'hover:bg-blue-500/40', border: 'border-blue-400' },
+                                    { bg: 'bg-teal-500/30', text: 'text-teal-200', textTime: 'text-teal-300/80', hover: 'hover:bg-teal-500/40', border: 'border-teal-400' },
                                     { bg: 'bg-emerald-500/30', text: 'text-emerald-200', textTime: 'text-emerald-300/80', hover: 'hover:bg-emerald-500/40', border: 'border-emerald-400' },
                                     { bg: 'bg-indigo-500/30', text: 'text-indigo-200', textTime: 'text-indigo-300/80', hover: 'hover:bg-indigo-500/40', border: 'border-indigo-400' },
                                   ];
                                   
                                   const colors = isMultiDay && colorId !== null 
                                     ? colorVariants[colorId]
-                                    : { bg: 'bg-purple-500/30', text: 'text-purple-200', textTime: 'text-purple-300/80', hover: 'hover:bg-purple-500/40', border: 'border-purple-400' };
+                                    : { bg: 'bg-cyan-500/30', text: 'text-cyan-200', textTime: 'text-cyan-300/80', hover: 'hover:bg-cyan-500/40', border: 'border-cyan-400' };
                                   
                                   // Determine border classes based on position
                                   let borderClasses = '';
                                   if (isMultiDay) {
-                                    if (eventPosition === 'start') {
+                                    if (hackathonPosition === 'start') {
                                       borderClasses = `border-l-2 ${colors.border} rounded-l-md rounded-r-sm`;
-                                    } else if (eventPosition === 'end') {
+                                    } else if (hackathonPosition === 'end') {
                                       borderClasses = `border-r-2 ${colors.border} rounded-r-md rounded-l-sm`;
-                                    } else if (eventPosition === 'middle') {
+                                    } else if (hackathonPosition === 'middle') {
                                       borderClasses = `border-l-2 border-r-2 ${colors.border} rounded-none`;
                                     }
                                   } else {
@@ -769,12 +888,12 @@ const HackathonsPage = () => {
                             key={`week-${day.day}-${dayIndex}`}
                             className={`min-h-[150px] sm:min-h-[300px] md:min-h-[400px] flex flex-col rounded-lg border p-2 sm:p-3 transition-all duration-200 ${
                               isToday
-                                ? 'border-purple-400 bg-purple-400/20'
+                                ? 'border-cyan-400 bg-cyan-400/20'
                                 : 'border-white/10 bg-white/5 hover:border-white/20 hover:bg-white/10'
                             }`}
                           >
                             <div className={`text-sm sm:text-base font-medium mb-2 sm:mb-3 flex-shrink-0 ${
-                              isToday ? 'text-purple-300' : 'text-white/70'
+                              isToday ? 'text-cyan-300' : 'text-white/70'
                             }`}>
                               <div className="flex items-center justify-between sm:block">
                                 <div className="flex items-center gap-2">
@@ -785,7 +904,7 @@ const HackathonsPage = () => {
                               </div>
                             </div>
                             <div className="flex-1 space-y-2 overflow-y-auto">
-                              {sortEventsByTime(day.events).map(hackathon => {
+                              {sortHackathonsByTime(day.events).map(hackathon => {
                                 return (
                                   <div
                                     key={hackathon.id}
@@ -794,14 +913,14 @@ const HackathonsPage = () => {
                                       setSelectedHackathon(hackathon);
                                       setIsModalOpen(true);
                                     }}
-                                    className="text-xs sm:text-sm px-2 sm:px-3 py-2 rounded cursor-pointer flex flex-col bg-purple-500/30 text-purple-200 hover:bg-purple-500/40"
+                                    className="text-xs sm:text-sm px-2 sm:px-3 py-2 rounded cursor-pointer flex flex-col bg-cyan-400/30 text-cyan-200 hover:bg-cyan-400/40"
                                     title={hackathon.name}
                                   >
                                     <div className="font-medium line-clamp-2 mb-1">
                                       {hackathon.name}
                                     </div>
                                     {hackathon.time && (
-                                      <div className="text-[10px] sm:text-xs text-purple-300/80">
+                                      <div className="text-[10px] sm:text-xs text-cyan-300/80">
                                         {hackathon.time}
                                       </div>
                                     )}
@@ -832,7 +951,7 @@ const HackathonsPage = () => {
               onClick={() => setView('timeline')}
               className={`flex items-center justify-center rounded-full border p-2.5 transition-all duration-200 ${
                 view === 'timeline'
-                  ? 'border-purple-400 bg-purple-400/20 text-purple-300'
+                  ? 'border-cyan-400 bg-cyan-400/20 text-cyan-300'
                   : 'border-white/20 bg-white/5 text-white/70 hover:border-white/30 hover:text-white'
               }`}
               title="Timeline View"
@@ -843,7 +962,7 @@ const HackathonsPage = () => {
               onClick={() => setView('calendar')}
               className={`flex items-center justify-center rounded-full border p-2.5 transition-all duration-200 ${
                 view === 'calendar'
-                  ? 'border-purple-400 bg-purple-400/20 text-purple-300'
+                  ? 'border-cyan-400 bg-cyan-400/20 text-cyan-300'
                   : 'border-white/20 bg-white/5 text-white/70 hover:border-white/30 hover:text-white'
               }`}
               title="Calendar View"
@@ -851,61 +970,91 @@ const HackathonsPage = () => {
               <CalendarIcon className="h-5 w-5" />
             </button>
           </div>
-          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-            {hackathons.map((hackathon, index) => (
-              <motion.div
-                key={hackathon.id}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.4, delay: index * 0.05 }}
-                className="hackathon-card group relative overflow-hidden cursor-pointer"
-                onClick={() => {
-                  setSelectedHackathon(hackathon);
-                  setIsModalOpen(true);
-                }}
-              >
-                <h3 className="heading-3 mb-4">{hackathon.name}</h3>
-                
-                <div className="space-y-2">
-                  {hackathon.date && (
-                    <div className="flex items-center gap-2 text-sm text-white/70">
-                      <CalendarIcon className="h-4 w-4 flex-shrink-0" />
-                      <span>{formatDate(hackathon.date)}</span>
-                    </div>
-                  )}
-                  {hackathon.endDate && (
-                    <div className="flex items-center gap-2 text-sm text-white/70">
-                      <ClockIcon className="h-4 w-4 flex-shrink-0" />
-                      <span>Ends: {formatDate(hackathon.endDate)}</span>
-                    </div>
-                  )}
-                  {hackathon.location && (
-                    <div className="flex items-center gap-2 text-sm text-white/70">
-                      <MapPinIcon className="h-4 w-4 flex-shrink-0" />
-                      <span>{hackathon.location}</span>
-                    </div>
-                  )}
-                  {hackathon.prizes && (
-                    <div className="flex items-center gap-2 text-sm text-white/70">
-                      <SparklesIcon className="h-4 w-4 flex-shrink-0" />
-                      <span>{hackathon.prizes}</span>
-                    </div>
-                  )}
-                  {hackathon.organizer && (
-                    <div className="flex items-center gap-2 text-sm text-white/70">
-                      <UserGroupIcon className="h-4 w-4 flex-shrink-0" />
-                      <span>By {hackathon.organizer}</span>
-                    </div>
-                  )}
-                </div>
+          <div className="relative">
+            {groupHackathonsByDate(filteredHackathons).map((dateGroup, groupIndex) => {
+              const timelineDate = dateGroup.dateKey !== 'no-date' 
+                ? formatTimelineDate(dateGroup.hackathons[0]?.date) 
+                : null;
+              
+              return (
+                <div key={dateGroup.dateKey} className="relative flex flex-col sm:flex-row items-start gap-4 sm:gap-6 md:gap-8 mb-6 sm:mb-8">
+                  {/* Timeline Left Side - Date */}
+                  <div className="flex-shrink-0 w-full sm:w-32 md:w-40">
+                    {timelineDate ? (
+                      <div className="text-left sm:text-right pr-0 sm:pr-4">
+                        <div className="label-form text-xs text-white/60 mb-1 uppercase">
+                          {timelineDate.label}
+                        </div>
+                        <div className="body-section text-sm text-white/70">
+                          {timelineDate.sublabel}
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="text-left sm:text-right pr-0 sm:pr-4">
+                        <div className="body-section text-sm text-white/60">
+                          Date TBA
+                        </div>
+                      </div>
+                    )}
+                  </div>
 
-                <motion.div
-                  className="absolute -bottom-10 -right-10 h-40 w-40 rounded-full bg-purple-400/20 blur-3xl"
-                  animate={{ scale: [1, 1.2, 1], opacity: [0.2, 0.4, 0.2] }}
-                  transition={{ duration: 8, repeat: Infinity, ease: 'easeInOut', delay: index * 0.2 }}
-                />
-              </motion.div>
-            ))}
+                  {/* Timeline Right Side - Hackathons */}
+                  <div className="flex-1 pb-6 sm:pb-8 w-full">
+                    <div className="space-y-4">
+                      {dateGroup.hackathons.map((hackathon, hackathonIndex) => (
+                        <motion.div
+                          key={hackathon.id}
+                          initial={{ opacity: 0, x: -20 }}
+                          animate={{ opacity: 1, x: 0 }}
+                          exit={{ opacity: 0, x: 20 }}
+                          transition={{ duration: 0.4, delay: (groupIndex * 0.1) + (hackathonIndex * 0.05) }}
+                          className="event-card group relative overflow-hidden cursor-pointer"
+                          onClick={() => {
+                            setSelectedHackathon(hackathon);
+                            setIsModalOpen(true);
+                          }}
+                        >
+                          {hackathon.time && (
+                            <div className="text-sm text-cyan-300 font-medium mb-2">
+                              {hackathon.time}
+                            </div>
+                          )}
+
+                          <h3 className="heading-3 mb-4">{hackathon.name}</h3>
+
+                          <div className="space-y-2">
+                            {hackathon.organizer && (
+                              <div className="flex items-center gap-2 text-sm text-white/70">
+                                <UserGroupIcon className="h-4 w-4 flex-shrink-0" />
+                                <span>By {hackathon.organizer}</span>
+                              </div>
+                            )}
+                            {hackathon.location && (
+                              <div className="flex items-center gap-2 text-sm text-white/70">
+                                <MapPinIcon className="h-4 w-4 flex-shrink-0" />
+                                <span>{hackathon.location}</span>
+                              </div>
+                            )}
+                            {hackathon.prizes && (
+                              <div className="flex items-center gap-2 text-sm text-white/70">
+                                <SparklesIcon className="h-4 w-4 flex-shrink-0" />
+                                <span>{hackathon.prizes}</span>
+                              </div>
+                            )}
+                          </div>
+
+                          <motion.div
+                            className="absolute -bottom-10 -right-10 h-40 w-40 rounded-full bg-cyan-400/20 blur-3xl"
+                            animate={{ scale: [1, 1.2, 1], opacity: [0.2, 0.4, 0.2] }}
+                            transition={{ duration: 8, repeat: Infinity, ease: 'easeInOut', delay: hackathonIndex * 0.2 }}
+                          />
+                        </motion.div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </div>
       )}
@@ -968,7 +1117,7 @@ const HackathonsPage = () => {
                     <div className="space-y-4">
                       {selectedHackathon.date && (
                         <div className="flex items-start gap-3">
-                          <ClockIcon className="h-5 w-5 text-purple-300 flex-shrink-0 mt-0.5" />
+                          <ClockIcon className="h-5 w-5 text-cyan-300 flex-shrink-0 mt-0.5" />
                           <div>
                             <p className="label-form text-xs mb-1">Start Date & Time</p>
                             <p className="body-section">
@@ -981,7 +1130,7 @@ const HackathonsPage = () => {
 
                       {selectedHackathon.endDate && (
                         <div className="flex items-start gap-3">
-                          <ClockIcon className="h-5 w-5 text-purple-300 flex-shrink-0 mt-0.5" />
+                          <ClockIcon className="h-5 w-5 text-cyan-300 flex-shrink-0 mt-0.5" />
                           <div>
                             <p className="label-form text-xs mb-1">End Date & Time</p>
                             <p className="body-section">
@@ -994,7 +1143,7 @@ const HackathonsPage = () => {
 
                       {selectedHackathon.signupDeadline && (
                         <div className="flex items-start gap-3">
-                          <CalendarIcon className="h-5 w-5 text-purple-300 flex-shrink-0 mt-0.5" />
+                          <CalendarIcon className="h-5 w-5 text-cyan-300 flex-shrink-0 mt-0.5" />
                           <div>
                             <p className="label-form text-xs mb-1">Signup Deadline</p>
                             <p className="body-section">{formatDate(selectedHackathon.signupDeadline)}</p>
@@ -1004,7 +1153,7 @@ const HackathonsPage = () => {
 
                       {selectedHackathon.location && (
                         <div className="flex items-start gap-3">
-                          <MapPinIcon className="h-5 w-5 text-purple-300 flex-shrink-0 mt-0.5" />
+                          <MapPinIcon className="h-5 w-5 text-cyan-300 flex-shrink-0 mt-0.5" />
                           <div>
                             <p className="label-form text-xs mb-1">Location</p>
                             <p className="body-section">{selectedHackathon.location}</p>
@@ -1014,7 +1163,7 @@ const HackathonsPage = () => {
 
                       {selectedHackathon.organizer && (
                         <div className="flex items-start gap-3">
-                          <UserGroupIcon className="h-5 w-5 text-purple-300 flex-shrink-0 mt-0.5" />
+                          <UserGroupIcon className="h-5 w-5 text-cyan-300 flex-shrink-0 mt-0.5" />
                           <div>
                             <p className="label-form text-xs mb-1">Organizer</p>
                             <p className="body-section">{selectedHackathon.organizer}</p>
@@ -1024,7 +1173,7 @@ const HackathonsPage = () => {
 
                       {selectedHackathon.prizes && (
                         <div className="flex items-start gap-3">
-                          <SparklesIcon className="h-5 w-5 text-purple-300 flex-shrink-0 mt-0.5" />
+                          <SparklesIcon className="h-5 w-5 text-cyan-300 flex-shrink-0 mt-0.5" />
                           <div>
                             <p className="label-form text-xs mb-1">Prizes</p>
                             <p className="body-section">{selectedHackathon.prizes}</p>

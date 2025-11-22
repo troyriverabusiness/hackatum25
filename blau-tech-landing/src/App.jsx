@@ -6,7 +6,6 @@ import Students from './pages/Students';
 
 // New Students section with tabs
 import StudentsLayout from './pages/students/StudentsLayout';
-import ForYou from './pages/students/ForYou';
 import EventsPage from './pages/students/EventsPage';
 import HackathonsPage from './pages/students/HackathonsPage';
 import ScholarshipsPage from './pages/students/ScholarshipsPage';
@@ -24,8 +23,7 @@ function App() {
         
         {/* New students section with tabs */}
         <Route path="/students" element={<StudentsLayout />}>
-          <Route index element={<Navigate to="/students/for-you" replace />} />
-          <Route path="for-you" element={<ForYou />} />
+          <Route index element={<Navigate to="/students/events" replace />} />
           <Route path="events" element={<EventsPage />} />
           <Route path="hackathons" element={<HackathonsPage />} />
           <Route path="scholarships" element={<ScholarshipsPage />} />
