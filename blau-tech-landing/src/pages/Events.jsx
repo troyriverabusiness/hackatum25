@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { CalendarIcon, MapPinIcon, ClockIcon, LinkIcon, UserGroupIcon, SparklesIcon, BoltIcon } from '@heroicons/react/24/outline';
+import { CalendarIcon, MapPinIcon, ClockIcon, LinkIcon, UserGroupIcon, SparklesIcon, BoltIcon, ArrowDownTrayIcon } from '@heroicons/react/24/outline';
 import Navbar from '../components/Navbar';
 import AnimatedBackground from '../components/AnimatedBackground';
 import JoinModal from '../components/JoinModal';
 import { supabase } from '../lib/supabase';
+import { downloadICS } from '../lib/ics';
 
 const Events = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -258,18 +259,32 @@ const Events = () => {
                             </p>
                           )}
 
-                          {/* Link Button */}
-                          {event.link && (
-                            <a
-                              href={event.link}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="btn-secondary mt-4 inline-flex w-full items-center justify-center gap-2"
-                            >
-                              <span>Learn More</span>
-                              <LinkIcon className="h-4 w-4" />
-                            </a>
-                          )}
+                          {/* Action Buttons */}
+                          <div className="mt-4 flex items-center gap-2">
+                            {event.link && (
+                              <a
+                                href={event.link}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="btn-secondary flex-1 inline-flex items-center justify-center gap-2"
+                              >
+                                <span>Learn More</span>
+                                <LinkIcon className="h-4 w-4" />
+                              </a>
+                            )}
+                            {event.date && (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  downloadICS(event);
+                                }}
+                                className="flex items-center justify-center rounded-full border border-white/20 bg-white/5 p-2 text-white/60 transition-all duration-200 hover:border-white/30 hover:bg-white/10 hover:text-white"
+                                title="Add to Calendar"
+                              >
+                                <ArrowDownTrayIcon className="h-4 w-4" />
+                              </button>
+                            )}
+                          </div>
 
                           {/* Hover Effect */}
                           <motion.div

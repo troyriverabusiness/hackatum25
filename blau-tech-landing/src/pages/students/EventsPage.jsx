@@ -1,8 +1,9 @@
 import { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Dialog } from '@headlessui/react';
-import { CalendarIcon, MapPinIcon, ClockIcon, LinkIcon, UserGroupIcon, XMarkIcon, Squares2X2Icon, ChevronLeftIcon, ChevronRightIcon } from '@heroicons/react/24/outline';
+import { CalendarIcon, MapPinIcon, ClockIcon, LinkIcon, UserGroupIcon, XMarkIcon, Squares2X2Icon, ChevronLeftIcon, ChevronRightIcon, ArrowDownTrayIcon } from '@heroicons/react/24/outline';
 import { supabase } from '../../lib/supabase';
+import { downloadICS } from '../../lib/ics';
 
 const EventsPage = () => {
   const [events, setEvents] = useState([]);
@@ -998,17 +999,30 @@ const EventsPage = () => {
                       </div>
                     )}
 
-                    {selectedEvent.link && (
+                    {(selectedEvent.link || selectedEvent.date) && (
                       <div className="pt-4 border-t border-white/10">
-                        <a
-                          href={selectedEvent.link}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="btn-primary inline-flex items-center gap-2"
-                        >
-                          <span>Visit Event Page</span>
-                          <LinkIcon className="h-4 w-4" />
-                        </a>
+                        <div className="flex items-center gap-3">
+                          {selectedEvent.link && (
+                            <a
+                              href={selectedEvent.link}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="btn-primary inline-flex items-center gap-2"
+                            >
+                              <span>Visit Event Page</span>
+                              <LinkIcon className="h-4 w-4" />
+                            </a>
+                          )}
+                          {selectedEvent.date && (
+                            <button
+                              onClick={() => downloadICS(selectedEvent)}
+                              className="flex items-center justify-center rounded-full border border-white/20 bg-white/5 p-2 text-white/60 transition-all duration-200 hover:border-white/30 hover:bg-white/10 hover:text-white"
+                              title="Add to Calendar"
+                            >
+                              <ArrowDownTrayIcon className="h-4 w-4" />
+                            </button>
+                          )}
+                        </div>
                       </div>
                     )}
                   </div>
