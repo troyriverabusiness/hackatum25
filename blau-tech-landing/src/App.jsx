@@ -10,6 +10,9 @@ import EventsPage from './pages/students/EventsPage';
 import HackathonsPage from './pages/students/HackathonsPage';
 import ScholarshipsPage from './pages/students/ScholarshipsPage';
 
+// Components
+import TimedAlert from './components/TimedAlert';
+
 function App() {
   return (
     <Router>
@@ -17,10 +20,10 @@ function App() {
         <Route path="/" element={<Home />} />
         <Route path="/partners" element={<Partners />} />
         <Route path="/events" element={<Events />} />
-        
+
         {/* Old students route - keep for backwards compatibility */}
         <Route path="/students-old" element={<Students />} />
-        
+
         {/* New students section with tabs */}
         <Route path="/students" element={<StudentsLayout />}>
           <Route index element={<Navigate to="/students/events" replace />} />
@@ -29,6 +32,7 @@ function App() {
           <Route path="scholarships" element={<ScholarshipsPage />} />
         </Route>
       </Routes>
+      <TimedAlert />
     </Router>
   );
 }
