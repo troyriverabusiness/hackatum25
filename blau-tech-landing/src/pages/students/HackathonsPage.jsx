@@ -533,6 +533,91 @@ const HackathonsPage = () => {
     return 'single';
   };
 
+  // Helper function to calculate hackathon duration in days
+  const getHackathonDuration = (hackathon) => {
+    if (!hackathon.endDate || !hackathon.date) return 1;
+    
+    try {
+      let hackathonStartDate;
+      const dateStr = String(hackathon.date).trim();
+      
+      if (dateStr.includes('/')) {
+        const parts = dateStr.split('/');
+        if (parts.length === 3) {
+          const [d, m, y] = parts.map(p => parseInt(p.trim(), 10));
+          if (!isNaN(d) && !isNaN(m) && !isNaN(y)) {
+            hackathonStartDate = new Date(y, m - 1, d);
+          }
+        }
+      } else if (dateStr.includes('-')) {
+        const dateOnly = dateStr.split('T')[0].split(' ')[0];
+        const parts = dateOnly.split('-').map(p => parseInt(p.trim(), 10));
+        if (parts.length === 3 && !parts.some(isNaN)) {
+          const [y, m, d] = parts;
+          hackathonStartDate = new Date(y, m - 1, d);
+        } else {
+          hackathonStartDate = new Date(dateStr);
+        }
+      } else {
+        hackathonStartDate = new Date(dateStr);
+      }
+
+      let hackathonEndDate;
+      const endDateStr = String(hackathon.endDate).trim();
+      
+      if (endDateStr.includes('/')) {
+        const parts = endDateStr.split('/');
+        if (parts.length === 3) {
+          const [d, m, y] = parts.map(p => parseInt(p.trim(), 10));
+          if (!isNaN(d) && !isNaN(m) && !isNaN(y)) {
+            hackathonEndDate = new Date(y, m - 1, d);
+          }
+        }
+      } else if (endDateStr.includes('-')) {
+        const dateOnly = endDateStr.split('T')[0].split(' ')[0];
+        const parts = dateOnly.split('-').map(p => parseInt(p.trim(), 10));
+        if (parts.length === 3 && !parts.some(isNaN)) {
+          const [y, m, d] = parts;
+          hackathonEndDate = new Date(y, m - 1, d);
+        } else {
+          hackathonEndDate = new Date(endDateStr);
+        }
+      } else {
+        hackathonEndDate = new Date(endDateStr);
+      }
+
+      if (!hackathonStartDate || !hackathonEndDate || isNaN(hackathonStartDate.getTime()) || isNaN(hackathonEndDate.getTime())) {
+        return 1;
+      }
+
+      hackathonStartDate.setHours(0, 0, 0, 0);
+      hackathonEndDate.setHours(0, 0, 0, 0);
+      
+      const diffTime = hackathonEndDate - hackathonStartDate;
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1; // +1 to include both start and end day
+      
+      return diffDays > 0 ? diffDays : 1;
+    } catch {
+      return 1;
+    }
+  };
+
+  // Helper function to check if hackathon continues to next day
+  const doesHackathonContinue = (hackathon, currentDate) => {
+    if (!hackathon.endDate) return false;
+    
+    const position = getHackathonPosition(hackathon, currentDate);
+    return position === 'start' || position === 'middle';
+  };
+
+  // Helper function to check if hackathon continues from previous day
+  const doesHackathonContinueFromPrevious = (hackathon, currentDate) => {
+    if (!hackathon.endDate) return false;
+    
+    const position = getHackathonPosition(hackathon, currentDate);
+    return position === 'middle' || position === 'end';
+  };
+
 
   if (loading) {
     return (
@@ -704,7 +789,7 @@ const HackathonsPage = () => {
                     </div>
                     
                     {/* Calendar Grid */}
-                    <div className="grid grid-cols-7 gap-1 sm:gap-2">
+                    <div className="grid grid-cols-7 gap-0 overflow-visible">
                       {calendar.map((week, weekIndex) =>
                         week.map((day, dayIndex) => {
                           if (!day) {
@@ -712,25 +797,31 @@ const HackathonsPage = () => {
                           }
                           
                           const isToday = day.date.toDateString() === new Date().toDateString();
+                          const isLastWeek = weekIndex === calendar.length - 1;
                           
                           return (
                             <div
                               key={`${day.day}-${weekIndex}`}
-                              className={`min-h-[80px] sm:min-h-[120px] md:min-h-[150px] flex flex-col rounded-lg border p-1 sm:p-2 transition-all duration-200 ${
+                              className={`min-h-[80px] sm:min-h-[120px] md:min-h-[150px] flex flex-col border-r p-1 sm:p-2 transition-all duration-200 relative overflow-visible ${
+                                !isLastWeek ? 'border-b' : ''
+                              } ${
                                 isToday
                                   ? 'border-cyan-400 bg-cyan-400/20'
                                   : 'border-white/10 bg-white/5 hover:border-white/20 hover:bg-white/10'
-                              }`}
+                              } ${dayIndex === 6 ? 'border-r-0' : ''}`}
                             >
                               <div className={`text-xs sm:text-sm font-medium mb-1 sm:mb-2 flex-shrink-0 ${
                                 isToday ? 'text-cyan-300' : 'text-white/70'
                               }`}>
                                 {day.day}
                               </div>
-                              <div className="flex-1 space-y-1 sm:space-y-1.5 overflow-y-auto">
+                              <div className="flex-1 space-y-1 sm:space-y-1.5 overflow-y-auto overflow-x-visible">
                                 {sortHackathonsByTime(day.events).slice(0, 3).map(hackathon => {
                                   const hackathonPosition = getHackathonPosition(hackathon, new Date(day.date));
                                   const isMultiDay = hackathonPosition !== 'single';
+                                  const duration = getHackathonDuration(hackathon);
+                                  const continuesNext = doesHackathonContinue(hackathon, new Date(day.date));
+                                  const continuesFromPrev = doesHackathonContinueFromPrevious(hackathon, new Date(day.date));
                                   
                                   // Generate a consistent color hash for multi-day hackathons
                                   const getHackathonColorId = (hackathonId) => {
@@ -743,30 +834,34 @@ const HackathonsPage = () => {
                                   
                                   const colorId = isMultiDay ? getHackathonColorId(hackathon.id) : null;
                                   const colorVariants = [
-                                    { bg: 'bg-cyan-500/30', text: 'text-cyan-200', textTime: 'text-cyan-300/80', hover: 'hover:bg-cyan-500/40', border: 'border-cyan-400' },
-                                    { bg: 'bg-sky-500/30', text: 'text-sky-200', textTime: 'text-sky-300/80', hover: 'hover:bg-sky-500/40', border: 'border-sky-400' },
-                                    { bg: 'bg-blue-500/30', text: 'text-blue-200', textTime: 'text-blue-300/80', hover: 'hover:bg-blue-500/40', border: 'border-blue-400' },
-                                    { bg: 'bg-teal-500/30', text: 'text-teal-200', textTime: 'text-teal-300/80', hover: 'hover:bg-teal-500/40', border: 'border-teal-400' },
-                                    { bg: 'bg-emerald-500/30', text: 'text-emerald-200', textTime: 'text-emerald-300/80', hover: 'hover:bg-emerald-500/40', border: 'border-emerald-400' },
-                                    { bg: 'bg-indigo-500/30', text: 'text-indigo-200', textTime: 'text-indigo-300/80', hover: 'hover:bg-indigo-500/40', border: 'border-indigo-400' },
+                                    { bg: 'bg-cyan-500/30', text: 'text-cyan-200', textTime: 'text-cyan-300/80', hover: 'hover:bg-cyan-500/40', border: 'border-cyan-400', line: 'bg-cyan-400/40' },
+                                    { bg: 'bg-sky-500/30', text: 'text-sky-200', textTime: 'text-sky-300/80', hover: 'hover:bg-sky-500/40', border: 'border-sky-400', line: 'bg-sky-400/40' },
+                                    { bg: 'bg-blue-500/30', text: 'text-blue-200', textTime: 'text-blue-300/80', hover: 'hover:bg-blue-500/40', border: 'border-blue-400', line: 'bg-blue-400/40' },
+                                    { bg: 'bg-teal-500/30', text: 'text-teal-200', textTime: 'text-teal-300/80', hover: 'hover:bg-teal-500/40', border: 'border-teal-400', line: 'bg-teal-400/40' },
+                                    { bg: 'bg-emerald-500/30', text: 'text-emerald-200', textTime: 'text-emerald-300/80', hover: 'hover:bg-emerald-500/40', border: 'border-emerald-400', line: 'bg-emerald-400/40' },
+                                    { bg: 'bg-indigo-500/30', text: 'text-indigo-200', textTime: 'text-indigo-300/80', hover: 'hover:bg-indigo-500/40', border: 'border-indigo-400', line: 'bg-indigo-400/40' },
                                   ];
                                   
                                   const colors = isMultiDay && colorId !== null 
                                     ? colorVariants[colorId]
-                                    : { bg: 'bg-cyan-500/30', text: 'text-cyan-200', textTime: 'text-cyan-300/80', hover: 'hover:bg-cyan-500/40', border: 'border-cyan-400' };
+                                    : { bg: 'bg-cyan-500/30', text: 'text-cyan-200', textTime: 'text-cyan-300/80', hover: 'hover:bg-cyan-500/40', border: 'border-cyan-400', line: 'bg-cyan-400/40' };
                                   
-                                  // Determine border classes based on position
+                                  // Determine border classes based on position - blocks extend and overlap
                                   let borderClasses = '';
+                                  let extendClasses = '';
                                   if (isMultiDay) {
                                     if (hackathonPosition === 'start') {
-                                      borderClasses = `border-l-2 ${colors.border} rounded-l-md rounded-r-sm`;
+                                      borderClasses = `border-l-2 ${colors.border} border-t-2 border-b-2 rounded-l-md`;
+                                      extendClasses = 'mr-[-1px]'; // Extend right to overlap with next cell
                                     } else if (hackathonPosition === 'end') {
-                                      borderClasses = `border-r-2 ${colors.border} rounded-r-md rounded-l-sm`;
+                                      borderClasses = `border-r-2 ${colors.border} border-t-2 border-b-2 rounded-r-md`;
+                                      extendClasses = 'ml-[-1px]'; // Extend left to overlap with previous cell
                                     } else if (hackathonPosition === 'middle') {
-                                      borderClasses = `border-l-2 border-r-2 ${colors.border} rounded-none`;
+                                      borderClasses = `border-t-2 border-b-2 ${colors.border}`;
+                                      extendClasses = 'ml-[-1px] mr-[-1px]'; // Extend both sides
                                     }
                                   } else {
-                                    borderClasses = 'rounded';
+                                    borderClasses = 'rounded-md';
                                   }
                                   
                                   return (
@@ -777,17 +872,26 @@ const HackathonsPage = () => {
                                         setSelectedHackathon(hackathon);
                                         setIsModalOpen(true);
                                       }}
-                                      className={`text-[10px] sm:text-xs px-1 sm:px-2 py-1 sm:py-1.5 cursor-pointer flex flex-col relative ${colors.bg} ${colors.text} ${colors.hover} ${borderClasses} ${
-                                        isMultiDay ? 'border-t border-b' : ''
-                                      }`}
+                                      className={`text-[10px] sm:text-xs px-1 sm:px-2 py-1 sm:py-1.5 cursor-pointer flex flex-col relative ${colors.bg} ${colors.text} ${colors.hover} ${borderClasses} ${extendClasses} transition-all duration-200 z-10`}
                                       title={hackathon.name}
                                     >
+                                      {/* Start indicator dot */}
                                       {isMultiDay && hackathonPosition === 'start' && (
-                                        <div className="absolute -left-1 top-1/2 -translate-y-1/2 w-2 h-2 rounded-full bg-white/40 border border-white/60"></div>
+                                        <div className={`absolute -left-1.5 top-1/2 -translate-y-1/2 w-2.5 h-2.5 rounded-full ${colors.border.replace('border-', 'bg-')} border-2 border-white/60 shadow-lg z-30`}></div>
                                       )}
+                                      
+                                      {/* End indicator dot */}
                                       {isMultiDay && hackathonPosition === 'end' && (
-                                        <div className="absolute -right-1 top-1/2 -translate-y-1/2 w-2 h-2 rounded-full bg-white/40 border border-white/60"></div>
+                                        <div className={`absolute -right-1.5 top-1/2 -translate-y-1/2 w-2.5 h-2.5 rounded-full ${colors.border.replace('border-', 'bg-')} border-2 border-white/60 shadow-lg z-30`}></div>
                                       )}
+                                      
+                                      {/* Duration badge on start day */}
+                                      {isMultiDay && hackathonPosition === 'start' && duration > 1 && (
+                                        <div className={`absolute -top-1.5 -right-1.5 px-1 py-0.5 rounded-full text-[8px] sm:text-[9px] font-semibold ${colors.border.replace('border-', 'bg-')} ${colors.text} border border-white/30 z-30`}>
+                                          {duration}d
+                                        </div>
+                                      )}
+                                      
                                       <div className="font-medium line-clamp-1 sm:line-clamp-2 mb-0.5 relative z-10">
                                         {hackathon.name}
                                       </div>
@@ -877,7 +981,7 @@ const HackathonsPage = () => {
                     </div>
                     
                     {/* Calendar Grid - Week View - Stacks vertically on mobile */}
-                    <div className="flex flex-col sm:grid sm:grid-cols-7 gap-2 sm:gap-1 md:gap-2">
+                    <div className="flex flex-col sm:grid sm:grid-cols-7 gap-0 overflow-visible">
                       {calendar[0].map((day, dayIndex) => {
                         const isToday = day.date.toDateString() === new Date().toDateString();
                         const monthName = monthNames[day.date.getMonth()].substring(0, 3);
@@ -886,11 +990,11 @@ const HackathonsPage = () => {
                         return (
                           <div
                             key={`week-${day.day}-${dayIndex}`}
-                            className={`min-h-[150px] sm:min-h-[300px] md:min-h-[400px] flex flex-col rounded-lg border p-2 sm:p-3 transition-all duration-200 ${
+                            className={`min-h-[150px] sm:min-h-[300px] md:min-h-[400px] flex flex-col border-r p-2 sm:p-3 transition-all duration-200 relative overflow-visible ${
                               isToday
                                 ? 'border-cyan-400 bg-cyan-400/20'
                                 : 'border-white/10 bg-white/5 hover:border-white/20 hover:bg-white/10'
-                            }`}
+                            } ${dayIndex === 6 ? 'border-r-0' : ''}`}
                           >
                             <div className={`text-sm sm:text-base font-medium mb-2 sm:mb-3 flex-shrink-0 ${
                               isToday ? 'text-cyan-300' : 'text-white/70'
@@ -903,8 +1007,55 @@ const HackathonsPage = () => {
                                 <div className="text-xs sm:hidden text-white/50 font-normal">{dayName}</div>
                               </div>
                             </div>
-                            <div className="flex-1 space-y-2 overflow-y-auto">
+                            <div className="flex-1 space-y-2 overflow-y-auto overflow-x-visible">
                               {sortHackathonsByTime(day.events).map(hackathon => {
+                                const hackathonPosition = getHackathonPosition(hackathon, new Date(day.date));
+                                const isMultiDay = hackathonPosition !== 'single';
+                                const duration = getHackathonDuration(hackathon);
+                                const continuesNext = doesHackathonContinue(hackathon, new Date(day.date));
+                                const continuesFromPrev = doesHackathonContinueFromPrevious(hackathon, new Date(day.date));
+                                
+                                // Generate a consistent color hash for multi-day hackathons
+                                const getHackathonColorId = (hackathonId) => {
+                                  let hash = 0;
+                                  for (let i = 0; i < hackathonId.length; i++) {
+                                    hash = hackathonId.charCodeAt(i) + ((hash << 5) - hash);
+                                  }
+                                  return Math.abs(hash) % 6; // 6 different color variants
+                                };
+                                
+                                const colorId = isMultiDay ? getHackathonColorId(hackathon.id) : null;
+                                const colorVariants = [
+                                  { bg: 'bg-cyan-500/30', text: 'text-cyan-200', textTime: 'text-cyan-300/80', hover: 'hover:bg-cyan-500/40', border: 'border-cyan-400', line: 'bg-cyan-400/40' },
+                                  { bg: 'bg-sky-500/30', text: 'text-sky-200', textTime: 'text-sky-300/80', hover: 'hover:bg-sky-500/40', border: 'border-sky-400', line: 'bg-sky-400/40' },
+                                  { bg: 'bg-blue-500/30', text: 'text-blue-200', textTime: 'text-blue-300/80', hover: 'hover:bg-blue-500/40', border: 'border-blue-400', line: 'bg-blue-400/40' },
+                                  { bg: 'bg-teal-500/30', text: 'text-teal-200', textTime: 'text-teal-300/80', hover: 'hover:bg-teal-500/40', border: 'border-teal-400', line: 'bg-teal-400/40' },
+                                  { bg: 'bg-emerald-500/30', text: 'text-emerald-200', textTime: 'text-emerald-300/80', hover: 'hover:bg-emerald-500/40', border: 'border-emerald-400', line: 'bg-emerald-400/40' },
+                                  { bg: 'bg-indigo-500/30', text: 'text-indigo-200', textTime: 'text-indigo-300/80', hover: 'hover:bg-indigo-500/40', border: 'border-indigo-400', line: 'bg-indigo-400/40' },
+                                ];
+                                
+                                const colors = isMultiDay && colorId !== null 
+                                  ? colorVariants[colorId]
+                                  : { bg: 'bg-cyan-500/30', text: 'text-cyan-200', textTime: 'text-cyan-300/80', hover: 'hover:bg-cyan-500/40', border: 'border-cyan-400', line: 'bg-cyan-400/40' };
+                                
+                                // Determine border classes based on position - blocks extend and overlap
+                                let borderClasses = '';
+                                let extendClasses = '';
+                                if (isMultiDay) {
+                                  if (hackathonPosition === 'start') {
+                                    borderClasses = `border-l-2 ${colors.border} border-t-2 border-b-2 rounded-l-md`;
+                                    extendClasses = 'mr-[-1px]'; // Extend right to overlap with next cell
+                                  } else if (hackathonPosition === 'end') {
+                                    borderClasses = `border-r-2 ${colors.border} border-t-2 border-b-2 rounded-r-md`;
+                                    extendClasses = 'ml-[-1px]'; // Extend left to overlap with previous cell
+                                  } else if (hackathonPosition === 'middle') {
+                                    borderClasses = `border-t-2 border-b-2 ${colors.border}`;
+                                    extendClasses = 'ml-[-1px] mr-[-1px]'; // Extend both sides
+                                  }
+                                } else {
+                                  borderClasses = 'rounded-md';
+                                }
+                                
                                 return (
                                   <div
                                     key={hackathon.id}
@@ -913,14 +1064,31 @@ const HackathonsPage = () => {
                                       setSelectedHackathon(hackathon);
                                       setIsModalOpen(true);
                                     }}
-                                    className="text-xs sm:text-sm px-2 sm:px-3 py-2 rounded cursor-pointer flex flex-col bg-cyan-400/30 text-cyan-200 hover:bg-cyan-400/40"
+                                    className={`text-xs sm:text-sm px-2 sm:px-3 py-2 cursor-pointer flex flex-col relative ${colors.bg} ${colors.text} ${colors.hover} ${borderClasses} ${extendClasses} transition-all duration-200 z-10`}
                                     title={hackathon.name}
                                   >
-                                    <div className="font-medium line-clamp-2 mb-1">
+                                    {/* Start indicator dot */}
+                                    {isMultiDay && hackathonPosition === 'start' && (
+                                      <div className={`absolute -left-1.5 top-1/2 -translate-y-1/2 w-2.5 h-2.5 rounded-full ${colors.border.replace('border-', 'bg-')} border-2 border-white/60 shadow-lg z-30`}></div>
+                                    )}
+                                    
+                                    {/* End indicator dot */}
+                                    {isMultiDay && hackathonPosition === 'end' && (
+                                      <div className={`absolute -right-1.5 top-1/2 -translate-y-1/2 w-2.5 h-2.5 rounded-full ${colors.border.replace('border-', 'bg-')} border-2 border-white/60 shadow-lg z-30`}></div>
+                                    )}
+                                    
+                                    {/* Duration badge on start day */}
+                                    {isMultiDay && hackathonPosition === 'start' && duration > 1 && (
+                                      <div className={`absolute -top-1.5 -right-1.5 px-1.5 py-0.5 rounded-full text-[9px] sm:text-[10px] font-semibold ${colors.border.replace('border-', 'bg-')} ${colors.text} border border-white/30 z-30`}>
+                                        {duration}d
+                                      </div>
+                                    )}
+                                    
+                                    <div className="font-medium line-clamp-2 mb-1 relative z-10">
                                       {hackathon.name}
                                     </div>
                                     {hackathon.time && (
-                                      <div className="text-[10px] sm:text-xs text-cyan-300/80">
+                                      <div className={`text-[10px] sm:text-xs ${colors.textTime} relative z-10`}>
                                         {hackathon.time}
                                       </div>
                                     )}
