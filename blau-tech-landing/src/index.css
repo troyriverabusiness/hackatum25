@@ -264,3 +264,11 @@ body {
   opacity: 0.6;
 }
 
+.force-white-fill {
+  fill: white !important;
+}
+
+.force-white-fill path {
+  fill: white !important;
+}
+
