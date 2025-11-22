@@ -101,6 +101,7 @@ export const generateICS = (event) => {
   }
   
   // Build ICS content
+  const eventTitle = `${event.name} — BT 🩵`;
   const lines = [
     'BEGIN:VCALENDAR',
     'VERSION:2.0',
@@ -112,7 +113,7 @@ export const generateICS = (event) => {
     `DTSTAMP:${dtStamp}`,
     `DTSTART:${startDate}`,
     `DTEND:${endDateStr}`,
-    `SUMMARY:${escapeICS(event.name)}`,
+    `SUMMARY:${escapeICS(eventTitle)}`,
   ];
   
   if (description) {
