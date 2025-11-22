@@ -3,23 +3,22 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { XMarkIcon } from '@heroicons/react/24/outline';
 
 const ALERT_DISMISSED_KEY = 'blau-tech-alert-dismissed';
-const ALERT_DELAY_MS = 3000; // 3 seconds (change to 60000 for production)
+const ALERT_DELAY_MS = 60000; // 60 seconds
 
 export default function TimedAlert() {
   const [isVisible, setIsVisible] = useState(false);
 
   useEffect(() => {
     // Check if alert was previously dismissed
-    // TEMPORARILY DISABLED FOR TESTING - uncomment the lines below for production
-    // const wasDismissed = localStorage.getItem(ALERT_DISMISSED_KEY);
-    // if (wasDismissed) {
-    //   return;
-    // }
+    const wasDismissed = localStorage.getItem(ALERT_DISMISSED_KEY);
+    if (wasDismissed) {
+      return;
+    }
 
-    // Set timer to show alert after delay (0 for immediate testing)
+    // Set timer to show alert after delay
     const timer = setTimeout(() => {
       setIsVisible(true);
-    }, 0); // Changed to 0 for immediate testing - change back to ALERT_DELAY_MS for production
+    }, ALERT_DELAY_MS);
 
     // Cleanup timer on unmount
     return () => clearTimeout(timer);
