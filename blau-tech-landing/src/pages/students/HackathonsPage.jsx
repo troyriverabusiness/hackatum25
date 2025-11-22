@@ -618,6 +618,154 @@ const HackathonsPage = () => {
     return position === 'middle' || position === 'end';
   };
 
+  // Get multi-day hackathons (2-3 days) with their calendar positions
+  const getMultiDayHackathonsForCalendar = (hackathons, calendar, month, year) => {
+    const multiDayHackathons = [];
+    const processedIds = new Set();
+
+    hackathons.forEach(hackathon => {
+      if (!hackathon.endDate || processedIds.has(hackathon.id)) return;
+      
+      const duration = getHackathonDuration(hackathon);
+      // Only include 2-3 day hackathons
+      if (duration < 2 || duration > 3) return;
+
+      try {
+        // Parse start date
+        let hackathonStartDate;
+        const dateStr = String(hackathon.date).trim();
+        
+        if (dateStr.includes('/')) {
+          const parts = dateStr.split('/');
+          if (parts.length === 3) {
+            const [d, m, y] = parts.map(p => parseInt(p.trim(), 10));
+            if (!isNaN(d) && !isNaN(m) && !isNaN(y)) {
+              hackathonStartDate = new Date(y, m - 1, d);
+            }
+          }
+        } else if (dateStr.includes('-')) {
+          const dateOnly = dateStr.split('T')[0].split(' ')[0];
+          const parts = dateOnly.split('-').map(p => parseInt(p.trim(), 10));
+          if (parts.length === 3 && !parts.some(isNaN)) {
+            const [y, m, d] = parts;
+            hackathonStartDate = new Date(y, m - 1, d);
+          } else {
+            hackathonStartDate = new Date(dateStr);
+          }
+        } else {
+          hackathonStartDate = new Date(dateStr);
+        }
+
+        // Parse end date
+        let hackathonEndDate;
+        const endDateStr = String(hackathon.endDate).trim();
+        
+        if (endDateStr.includes('/')) {
+          const parts = endDateStr.split('/');
+          if (parts.length === 3) {
+            const [d, m, y] = parts.map(p => parseInt(p.trim(), 10));
+            if (!isNaN(d) && !isNaN(m) && !isNaN(y)) {
+              hackathonEndDate = new Date(y, m - 1, d);
+            }
+          }
+        } else if (endDateStr.includes('-')) {
+          const dateOnly = endDateStr.split('T')[0].split(' ')[0];
+          const parts = dateOnly.split('-').map(p => parseInt(p.trim(), 10));
+          if (parts.length === 3 && !parts.some(isNaN)) {
+            const [y, m, d] = parts;
+            hackathonEndDate = new Date(y, m - 1, d);
+          } else {
+            hackathonEndDate = new Date(endDateStr);
+          }
+        } else {
+          hackathonEndDate = new Date(endDateStr);
+        }
+
+        if (!hackathonStartDate || !hackathonEndDate || 
+            isNaN(hackathonStartDate.getTime()) || isNaN(hackathonEndDate.getTime())) {
+          return;
+        }
+
+        hackathonStartDate.setHours(0, 0, 0, 0);
+        hackathonEndDate.setHours(0, 0, 0, 0);
+
+        // Check if hackathon overlaps with current month
+        const firstDayOfMonth = new Date(year, month, 1);
+        const lastDayOfMonth = new Date(year, month + 1, 0);
+        firstDayOfMonth.setHours(0, 0, 0, 0);
+        lastDayOfMonth.setHours(0, 0, 0, 0);
+
+        if (hackathonEndDate < firstDayOfMonth || hackathonStartDate > lastDayOfMonth) {
+          return; // Hackathon doesn't overlap with current month
+        }
+
+        // Find start and end positions in calendar grid
+        let startWeek = -1;
+        let startDay = -1;
+        let endWeek = -1;
+        let endDay = -1;
+
+        calendar.forEach((week, weekIndex) => {
+          week.forEach((day, dayIndex) => {
+            if (!day) return;
+            
+            const dayDate = new Date(day.date);
+            dayDate.setHours(0, 0, 0, 0);
+
+            if (dayDate.getTime() === hackathonStartDate.getTime()) {
+              startWeek = weekIndex;
+              startDay = dayIndex;
+            }
+            if (dayDate.getTime() === hackathonEndDate.getTime()) {
+              endWeek = weekIndex;
+              endDay = dayIndex;
+            }
+          });
+        });
+
+        // If hackathon spans across weeks, find the actual start and end
+        if (startWeek === -1 || endWeek === -1) {
+          // Find the first and last day of hackathon that appears in calendar
+          let foundStart = false;
+          calendar.forEach((week, weekIndex) => {
+            week.forEach((day, dayIndex) => {
+              if (!day) return;
+              
+              const dayDate = new Date(day.date);
+              dayDate.setHours(0, 0, 0, 0);
+
+              if (dayDate >= hackathonStartDate && dayDate <= hackathonEndDate) {
+                if (!foundStart) {
+                  startWeek = weekIndex;
+                  startDay = dayIndex;
+                  foundStart = true;
+                }
+                endWeek = weekIndex;
+                endDay = dayIndex;
+              }
+            });
+          });
+        }
+
+        if (startWeek !== -1 && endWeek !== -1) {
+          processedIds.add(hackathon.id);
+          multiDayHackathons.push({
+            hackathon,
+            startWeek,
+            startDay,
+            endWeek,
+            endDay,
+            duration
+          });
+        }
+      } catch (err) {
+        console.error('Error processing multi-day hackathon:', err);
+      }
+    });
+
+    return multiDayHackathons;
+  };
+
 
   if (loading) {
     return (
@@ -730,6 +878,25 @@ const HackathonsPage = () => {
               
               if (calendarView === 'month') {
                 const { calendar, month, year } = getCalendarMonth(hackathons, selectedMonth, selectedYear);
+                const multiDayHackathons = getMultiDayHackathonsForCalendar(hackathons, calendar, month, year);
+                
+                // Generate a consistent color hash for multi-day hackathons
+                const getHackathonColorId = (hackathonId) => {
+                  let hash = 0;
+                  for (let i = 0; i < hackathonId.length; i++) {
+                    hash = hackathonId.charCodeAt(i) + ((hash << 5) - hash);
+                  }
+                  return Math.abs(hash) % 6; // 6 different color variants
+                };
+                
+                const colorVariants = [
+                  { bg: 'bg-cyan-500/60', text: 'text-cyan-200', border: 'border-cyan-400' },
+                  { bg: 'bg-sky-500/60', text: 'text-sky-200', border: 'border-sky-400' },
+                  { bg: 'bg-blue-500/60', text: 'text-blue-200', border: 'border-blue-400' },
+                  { bg: 'bg-teal-500/60', text: 'text-teal-200', border: 'border-teal-400' },
+                  { bg: 'bg-emerald-500/60', text: 'text-emerald-200', border: 'border-emerald-400' },
+                  { bg: 'bg-indigo-500/60', text: 'text-indigo-200', border: 'border-indigo-400' },
+                ];
                 
                 const handlePreviousMonth = () => {
                   let currentMonth = selectedMonth !== null ? selectedMonth : month;
@@ -780,43 +947,132 @@ const HackathonsPage = () => {
                       </button>
                     </div>
                     {/* Calendar Header */}
-                    <div className="grid grid-cols-7 gap-1 sm:gap-2 mb-2 sm:mb-4">
+                    <div className="grid grid-cols-7 gap-0 mb-2 sm:mb-4">
                       {dayNames.map(day => (
-                        <div key={day} className="text-center text-xs sm:text-sm font-medium text-white/60 py-1 sm:py-2">
+                        <div key={day} className="text-center text-xs sm:text-sm font-medium text-white/60 py-1 sm:py-2 border-r border-white/10 last:border-r-0">
                           {day}
                         </div>
                       ))}
                     </div>
                     
-                    {/* Calendar Grid */}
-                    <div className="grid grid-cols-7 gap-0 overflow-visible">
-                      {calendar.map((week, weekIndex) =>
-                        week.map((day, dayIndex) => {
-                          if (!day) {
-                            return <div key={`${weekIndex}-${dayIndex}`} className="min-h-[80px] sm:min-h-[120px] md:min-h-[150px]"></div>;
+                    {/* Calendar Grid with Multi-day Bars Above Each Week */}
+                    <div className="space-y-0">
+                      {calendar.map((week, weekIndex) => {
+                        // Get multi-day hackathons for this specific week
+                        const weekMultiDayHackathons = multiDayHackathons.filter(({ startWeek, endWeek }) => {
+                          return weekIndex >= startWeek && weekIndex <= endWeek;
+                        }).map(({ hackathon, startWeek, startDay, endWeek, endDay, duration }) => {
+                          // Calculate which columns this hackathon spans in this week
+                          let weekStartCol = -1;
+                          let weekEndCol = -1;
+                          
+                          if (weekIndex === startWeek && weekIndex === endWeek) {
+                            // Hackathon is entirely in this week
+                            weekStartCol = startDay;
+                            weekEndCol = endDay;
+                          } else if (weekIndex === startWeek) {
+                            // Hackathon starts in this week
+                            weekStartCol = startDay;
+                            weekEndCol = 6; // End of week
+                          } else if (weekIndex === endWeek) {
+                            // Hackathon ends in this week
+                            weekStartCol = 0; // Start of week
+                            weekEndCol = endDay;
+                          } else if (weekIndex > startWeek && weekIndex < endWeek) {
+                            // Hackathon spans entire week
+                            weekStartCol = 0;
+                            weekEndCol = 6;
                           }
                           
-                          const isToday = day.date.toDateString() === new Date().toDateString();
-                          const isLastWeek = weekIndex === calendar.length - 1;
-                          
-                          return (
-                            <div
-                              key={`${day.day}-${weekIndex}`}
-                              className={`min-h-[80px] sm:min-h-[120px] md:min-h-[150px] flex flex-col border-r p-1 sm:p-2 transition-all duration-200 relative overflow-visible ${
-                                !isLastWeek ? 'border-b' : ''
-                              } ${
-                                isToday
-                                  ? 'border-cyan-400 bg-cyan-400/20'
-                                  : 'border-white/10 bg-white/5 hover:border-white/20 hover:bg-white/10'
-                              } ${dayIndex === 6 ? 'border-r-0' : ''}`}
-                            >
-                              <div className={`text-xs sm:text-sm font-medium mb-1 sm:mb-2 flex-shrink-0 ${
-                                isToday ? 'text-cyan-300' : 'text-white/70'
-                              }`}>
-                                {day.day}
-                              </div>
-                              <div className="flex-1 space-y-1 sm:space-y-1.5 overflow-y-auto overflow-x-visible">
-                                {sortHackathonsByTime(day.events).slice(0, 3).map(hackathon => {
+                          return {
+                            hackathon,
+                            weekStartCol,
+                            weekEndCol,
+                            duration,
+                            isStart: weekIndex === startWeek,
+                            isEnd: weekIndex === endWeek
+                          };
+                        }).filter(({ weekStartCol }) => weekStartCol !== -1);
+                        
+                        // Calculate max number of bars for this week
+                        const maxBars = weekMultiDayHackathons.length;
+                        
+                        return (
+                          <div key={weekIndex} className="relative">
+                            {/* Calendar Week Row */}
+                            <div className="grid grid-cols-7 gap-0 overflow-visible relative">
+                              {/* Multi-day hackathon bars - rendered once per week, spanning across columns, overlapping the cells */}
+                              {weekMultiDayHackathons.map(({ hackathon, weekStartCol, weekEndCol, duration, isStart, isEnd }, barIndex) => {
+                                const cellWidth = 100 / 7;
+                                const leftPercent = weekStartCol * cellWidth;
+                                const widthPercent = (weekEndCol - weekStartCol + 1) * cellWidth;
+                                
+                                const colorId = getHackathonColorId(hackathon.id);
+                                const colors = colorVariants[colorId];
+                                
+                                return (
+                                  <div
+                                    key={hackathon.id}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setSelectedHackathon(hackathon);
+                                      setIsModalOpen(true);
+                                    }}
+                                    className={`absolute h-7 rounded-md px-2 py-1 cursor-pointer flex items-center gap-1 ${colors.bg} ${colors.text} ${isStart ? `border-l-2 ${colors.border} rounded-l-md` : ''} ${isEnd ? `border-r-2 ${colors.border} rounded-r-md` : ''} hover:opacity-90 transition-all z-30 shadow-sm`}
+                                    style={{
+                                      left: `${leftPercent}%`,
+                                      width: `${widthPercent}%`,
+                                      top: `${barIndex * 36}px` // Position at the top of the calendar cells
+                                    }}
+                                    title={`${hackathon.name} (${duration} days)`}
+                                  >
+                                    {isStart && (
+                                      <>
+                                        <span className="text-xs font-semibold truncate flex-1">{hackathon.name}</span>
+                                        {duration > 1 && (
+                                          <span className="text-[10px] opacity-75 flex-shrink-0">{duration}d</span>
+                                        )}
+                                      </>
+                                    )}
+                                  </div>
+                                );
+                              })}
+                              
+                              {week.map((day, dayIndex) => {
+                                if (!day) {
+                                  return <div key={`${weekIndex}-${dayIndex}`} className="min-h-[80px] sm:min-h-[120px] md:min-h-[150px]"></div>;
+                                }
+                                
+                                const isToday = day.date.toDateString() === new Date().toDateString();
+                                const isLastWeek = weekIndex === calendar.length - 1;
+                                
+                                // Check if this day column has multi-day hackathons to add padding
+                                const dayHasBars = weekMultiDayHackathons.some(({ weekStartCol, weekEndCol }) => 
+                                  dayIndex >= weekStartCol && dayIndex <= weekEndCol
+                                );
+                                
+                                return (
+                                  <div
+                                    key={`${day.day}-${weekIndex}`}
+                                    className={`min-h-[80px] sm:min-h-[120px] md:min-h-[150px] flex flex-col border-r p-1 sm:p-2 transition-all duration-200 relative overflow-visible ${
+                                      !isLastWeek ? 'border-b' : ''
+                                    } ${
+                                      isToday
+                                        ? 'border-cyan-400 bg-cyan-400/20'
+                                        : 'border-white/10 bg-white/5 hover:border-white/20 hover:bg-white/10'
+                                    } ${dayIndex === 6 ? 'border-r-0' : ''}`}
+                                    style={{
+                                      paddingTop: dayHasBars && maxBars > 0 ? `${Math.max(4, maxBars * 36)}px` : undefined
+                                    }}
+                                  >
+                                    <div className="flex-1 space-y-1 sm:space-y-1.5 overflow-y-auto overflow-x-visible relative">
+                                      {sortHackathonsByTime(day.events)
+                                        .filter(hackathon => {
+                                          // Filter out multi-day hackathons (2-3 days) - they're shown above
+                                          const duration = getHackathonDuration(hackathon);
+                                          return duration < 2 || duration > 3;
+                                        })
+                                        .slice(0, 3).map(hackathon => {
                                   const hackathonPosition = getHackathonPosition(hackathon, new Date(day.date));
                                   const isMultiDay = hackathonPosition !== 'single';
                                   const duration = getHackathonDuration(hackathon);
@@ -844,21 +1100,38 @@ const HackathonsPage = () => {
                                   
                                   const colors = isMultiDay && colorId !== null 
                                     ? colorVariants[colorId]
-                                    : { bg: 'bg-cyan-500/30', text: 'text-cyan-200', textTime: 'text-cyan-300/80', hover: 'hover:bg-cyan-500/40', border: 'border-cyan-400', line: 'bg-cyan-400/40' };
+                                    : { bg: 'bg-cyan-500/40', text: 'text-cyan-200', textTime: 'text-cyan-300/80', hover: 'hover:bg-cyan-500/50', border: 'border-cyan-400', line: 'bg-cyan-400/40' };
                                   
-                                  // Determine border classes based on position - blocks extend and overlap
+                                  // Make multi-day hackathons more prominent with stronger background
+                                  let finalBg = colors.bg;
+                                  if (isMultiDay) {
+                                    // Increase opacity for multi-day events to make them stand out
+                                    if (colors.bg.includes('/30')) {
+                                      finalBg = colors.bg.replace('/30', '/60');
+                                    } else if (colors.bg.includes('/40')) {
+                                      finalBg = colors.bg.replace('/40', '/60');
+                                    } else if (colors.bg.includes('/50')) {
+                                      finalBg = colors.bg.replace('/50', '/60');
+                                    }
+                                  }
+                                  
+                                  // Determine border classes based on position - Google Calendar style seamless connection
                                   let borderClasses = '';
                                   let extendClasses = '';
+                                  let zIndexClass = 'z-10';
                                   if (isMultiDay) {
                                     if (hackathonPosition === 'start') {
                                       borderClasses = `border-l-2 ${colors.border} border-t-2 border-b-2 rounded-l-md`;
-                                      extendClasses = 'mr-[-1px]'; // Extend right to overlap with next cell
+                                      extendClasses = 'mr-[-2px]'; // Extend right to seamlessly connect
+                                      zIndexClass = 'z-20';
                                     } else if (hackathonPosition === 'end') {
                                       borderClasses = `border-r-2 ${colors.border} border-t-2 border-b-2 rounded-r-md`;
-                                      extendClasses = 'ml-[-1px]'; // Extend left to overlap with previous cell
+                                      extendClasses = 'ml-[-2px]'; // Extend left to seamlessly connect
+                                      zIndexClass = 'z-20';
                                     } else if (hackathonPosition === 'middle') {
                                       borderClasses = `border-t-2 border-b-2 ${colors.border}`;
-                                      extendClasses = 'ml-[-1px] mr-[-1px]'; // Extend both sides
+                                      extendClasses = 'ml-[-2px] mr-[-2px]'; // Extend both sides seamlessly
+                                      zIndexClass = 'z-20';
                                     }
                                   } else {
                                     borderClasses = 'rounded-md';
@@ -872,18 +1145,12 @@ const HackathonsPage = () => {
                                         setSelectedHackathon(hackathon);
                                         setIsModalOpen(true);
                                       }}
-                                      className={`text-[10px] sm:text-xs px-1 sm:px-2 py-1 sm:py-1.5 cursor-pointer flex flex-col relative ${colors.bg} ${colors.text} ${colors.hover} ${borderClasses} ${extendClasses} transition-all duration-200 z-10`}
+                                      className={`text-[10px] sm:text-xs px-1 sm:px-2 py-1 sm:py-1.5 cursor-pointer flex flex-col relative ${finalBg} ${colors.text} ${colors.hover} ${borderClasses} ${extendClasses} transition-all duration-200 ${zIndexClass}`}
                                       title={hackathon.name}
                                     >
-                                      {/* Start indicator dot */}
-                                      {isMultiDay && hackathonPosition === 'start' && (
-                                        <div className={`absolute -left-1.5 top-1/2 -translate-y-1/2 w-2.5 h-2.5 rounded-full ${colors.border.replace('border-', 'bg-')} border-2 border-white/60 shadow-lg z-30`}></div>
-                                      )}
+                                      {/* Start indicator dot - removed for cleaner Google Calendar look */}
                                       
-                                      {/* End indicator dot */}
-                                      {isMultiDay && hackathonPosition === 'end' && (
-                                        <div className={`absolute -right-1.5 top-1/2 -translate-y-1/2 w-2.5 h-2.5 rounded-full ${colors.border.replace('border-', 'bg-')} border-2 border-white/60 shadow-lg z-30`}></div>
-                                      )}
+                                      {/* End indicator dot - removed for cleaner Google Calendar look */}
                                       
                                       {/* Duration badge on start day */}
                                       {isMultiDay && hackathonPosition === 'start' && duration > 1 && (
@@ -902,17 +1169,32 @@ const HackathonsPage = () => {
                                       )}
                                     </div>
                                   );
-                                })}
-                                {day.events.length > 3 && (
-                                  <div className="text-[10px] sm:text-xs text-white/50 px-1 sm:px-2">
-                                    +{day.events.length - 3} more
+                                        })}
+                                      {day.events.filter(h => {
+                                        const duration = getHackathonDuration(h);
+                                        return duration < 2 || duration > 3;
+                                      }).length > 3 && (
+                                        <div className="text-[10px] sm:text-xs text-white/50 px-1 sm:px-2">
+                                          +{day.events.filter(h => {
+                                            const duration = getHackathonDuration(h);
+                                            return duration < 2 || duration > 3;
+                                          }).length - 3} more
+                                        </div>
+                                      )}
+                                    </div>
+                                    {/* Day number at bottom left */}
+                                    <div className={`text-xs sm:text-sm font-medium mt-auto pt-1 flex-shrink-0 ${
+                                      isToday ? 'text-cyan-300' : 'text-white/70'
+                                    }`}>
+                                      {day.day}
+                                    </div>
                                   </div>
-                                )}
-                              </div>
+                                );
+                              })}
                             </div>
-                          );
-                        })
-                      )}
+                          </div>
+                        );
+                      })}
                     </div>
                   </>
                 );
@@ -922,6 +1204,147 @@ const HackathonsPage = () => {
                 const { calendar, weekStart } = getCalendarWeek(hackathons, currentWeekStart);
                 const weekEnd = new Date(weekStart);
                 weekEnd.setDate(weekStart.getDate() + 6);
+                
+                // Get multi-day hackathons for week view
+                const weekMultiDayHackathons = hackathons
+                  .filter(hackathon => {
+                    if (!hackathon.endDate) return false;
+                    const duration = getHackathonDuration(hackathon);
+                    return duration >= 2 && duration <= 3;
+                  })
+                  .map(hackathon => {
+                    try {
+                      // Parse start date
+                      let hackathonStartDate;
+                      const dateStr = String(hackathon.date).trim();
+                      
+                      if (dateStr.includes('/')) {
+                        const parts = dateStr.split('/');
+                        if (parts.length === 3) {
+                          const [d, m, y] = parts.map(p => parseInt(p.trim(), 10));
+                          if (!isNaN(d) && !isNaN(m) && !isNaN(y)) {
+                            hackathonStartDate = new Date(y, m - 1, d);
+                          }
+                        }
+                      } else if (dateStr.includes('-')) {
+                        const dateOnly = dateStr.split('T')[0].split(' ')[0];
+                        const parts = dateOnly.split('-').map(p => parseInt(p.trim(), 10));
+                        if (parts.length === 3 && !parts.some(isNaN)) {
+                          const [y, m, d] = parts;
+                          hackathonStartDate = new Date(y, m - 1, d);
+                        } else {
+                          hackathonStartDate = new Date(dateStr);
+                        }
+                      } else {
+                        hackathonStartDate = new Date(dateStr);
+                      }
+
+                      // Parse end date
+                      let hackathonEndDate;
+                      const endDateStr = String(hackathon.endDate).trim();
+                      
+                      if (endDateStr.includes('/')) {
+                        const parts = endDateStr.split('/');
+                        if (parts.length === 3) {
+                          const [d, m, y] = parts.map(p => parseInt(p.trim(), 10));
+                          if (!isNaN(d) && !isNaN(m) && !isNaN(y)) {
+                            hackathonEndDate = new Date(y, m - 1, d);
+                          }
+                        }
+                      } else if (endDateStr.includes('-')) {
+                        const dateOnly = endDateStr.split('T')[0].split(' ')[0];
+                        const parts = dateOnly.split('-').map(p => parseInt(p.trim(), 10));
+                        if (parts.length === 3 && !parts.some(isNaN)) {
+                          const [y, m, d] = parts;
+                          hackathonEndDate = new Date(y, m - 1, d);
+                        } else {
+                          hackathonEndDate = new Date(endDateStr);
+                        }
+                      } else {
+                        hackathonEndDate = new Date(endDateStr);
+                      }
+
+                      if (!hackathonStartDate || !hackathonEndDate || 
+                          isNaN(hackathonStartDate.getTime()) || isNaN(hackathonEndDate.getTime())) {
+                        return null;
+                      }
+
+                      hackathonStartDate.setHours(0, 0, 0, 0);
+                      hackathonEndDate.setHours(0, 0, 0, 0);
+
+                      // Check if hackathon overlaps with current week
+                      if (hackathonEndDate < weekStart || hackathonStartDate > weekEnd) {
+                        return null; // Hackathon doesn't overlap with current week
+                      }
+
+                      // Find start and end day indices in the week
+                      let startDayIndex = -1;
+                      let endDayIndex = -1;
+
+                      calendar[0].forEach((day, dayIndex) => {
+                        const dayDate = new Date(day.date);
+                        dayDate.setHours(0, 0, 0, 0);
+
+                        if (dayDate.getTime() === hackathonStartDate.getTime()) {
+                          startDayIndex = dayIndex;
+                        }
+                        if (dayDate.getTime() === hackathonEndDate.getTime()) {
+                          endDayIndex = dayIndex;
+                        }
+                      });
+
+                      // If exact match not found, find closest days
+                      if (startDayIndex === -1 || endDayIndex === -1) {
+                        calendar[0].forEach((day, dayIndex) => {
+                          const dayDate = new Date(day.date);
+                          dayDate.setHours(0, 0, 0, 0);
+
+                          if (dayDate >= hackathonStartDate && dayDate <= hackathonEndDate) {
+                            if (startDayIndex === -1) {
+                              startDayIndex = dayIndex;
+                            }
+                            endDayIndex = dayIndex;
+                          }
+                        });
+                      }
+
+                      if (startDayIndex !== -1 && endDayIndex !== -1) {
+                        const duration = getHackathonDuration(hackathon);
+                        return {
+                          hackathon,
+                          startDayIndex,
+                          endDayIndex,
+                          duration,
+                          isStart: calendar[0][startDayIndex]?.date.toDateString() === hackathonStartDate.toDateString(),
+                          isEnd: calendar[0][endDayIndex]?.date.toDateString() === hackathonEndDate.toDateString()
+                        };
+                      }
+                      return null;
+                    } catch (err) {
+                      return null;
+                    }
+                  })
+                  .filter(item => item !== null);
+                
+                // Generate a consistent color hash for multi-day hackathons
+                const getHackathonColorId = (hackathonId) => {
+                  let hash = 0;
+                  for (let i = 0; i < hackathonId.length; i++) {
+                    hash = hackathonId.charCodeAt(i) + ((hash << 5) - hash);
+                  }
+                  return Math.abs(hash) % 6;
+                };
+                
+                const colorVariants = [
+                  { bg: 'bg-cyan-500/60', text: 'text-cyan-200', border: 'border-cyan-400' },
+                  { bg: 'bg-sky-500/60', text: 'text-sky-200', border: 'border-sky-400' },
+                  { bg: 'bg-blue-500/60', text: 'text-blue-200', border: 'border-blue-400' },
+                  { bg: 'bg-teal-500/60', text: 'text-teal-200', border: 'border-teal-400' },
+                  { bg: 'bg-emerald-500/60', text: 'text-emerald-200', border: 'border-emerald-400' },
+                  { bg: 'bg-indigo-500/60', text: 'text-indigo-200', border: 'border-indigo-400' },
+                ];
+                
+                const maxBars = weekMultiDayHackathons.length;
                 
                 const formatWeekRange = (start, end) => {
                   const startMonth = monthNames[start.getMonth()];
@@ -981,11 +1404,53 @@ const HackathonsPage = () => {
                     </div>
                     
                     {/* Calendar Grid - Week View - Stacks vertically on mobile */}
-                    <div className="flex flex-col sm:grid sm:grid-cols-7 gap-0 overflow-visible">
+                    <div className="flex flex-col sm:grid sm:grid-cols-7 gap-0 overflow-visible relative">
+                      {/* Multi-day hackathon bars - rendered once for the week, spanning across columns */}
+                      {weekMultiDayHackathons.map(({ hackathon, startDayIndex, endDayIndex, duration, isStart, isEnd }, barIndex) => {
+                        const cellWidth = 100 / 7;
+                        const leftPercent = startDayIndex * cellWidth;
+                        const widthPercent = (endDayIndex - startDayIndex + 1) * cellWidth;
+                        
+                        const colorId = getHackathonColorId(hackathon.id);
+                        const colors = colorVariants[colorId];
+                        
+                        return (
+                          <div
+                            key={hackathon.id}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSelectedHackathon(hackathon);
+                              setIsModalOpen(true);
+                            }}
+                            className={`absolute h-7 rounded-md px-2 py-1 cursor-pointer flex items-center gap-1 ${colors.bg} ${colors.text} ${isStart ? `border-l-2 ${colors.border} rounded-l-md` : ''} ${isEnd ? `border-r-2 ${colors.border} rounded-r-md` : ''} hover:opacity-90 transition-all z-30 shadow-sm`}
+                            style={{
+                              left: `${leftPercent}%`,
+                              width: `${widthPercent}%`,
+                              top: `${barIndex * 36}px` // Position at the top of the calendar cells
+                            }}
+                            title={`${hackathon.name} (${duration} days)`}
+                          >
+                            {isStart && (
+                              <>
+                                <span className="text-xs font-semibold truncate flex-1">{hackathon.name}</span>
+                                {duration > 1 && (
+                                  <span className="text-[10px] opacity-75 flex-shrink-0">{duration}d</span>
+                                )}
+                              </>
+                            )}
+                          </div>
+                        );
+                      })}
+                      
                       {calendar[0].map((day, dayIndex) => {
                         const isToday = day.date.toDateString() === new Date().toDateString();
                         const monthName = monthNames[day.date.getMonth()].substring(0, 3);
                         const dayName = dayNames[dayIndex];
+                        
+                        // Check if this day has multi-day hackathons
+                        const dayHasBars = weekMultiDayHackathons.some(({ startDayIndex, endDayIndex }) => 
+                          dayIndex >= startDayIndex && dayIndex <= endDayIndex
+                        );
                         
                         return (
                           <div
@@ -995,20 +1460,18 @@ const HackathonsPage = () => {
                                 ? 'border-cyan-400 bg-cyan-400/20'
                                 : 'border-white/10 bg-white/5 hover:border-white/20 hover:bg-white/10'
                             } ${dayIndex === 6 ? 'border-r-0' : ''}`}
+                            style={{
+                              paddingTop: dayHasBars && maxBars > 0 ? `${Math.max(4, maxBars * 36)}px` : undefined
+                            }}
                           >
-                            <div className={`text-sm sm:text-base font-medium mb-2 sm:mb-3 flex-shrink-0 ${
-                              isToday ? 'text-cyan-300' : 'text-white/70'
-                            }`}>
-                              <div className="flex items-center justify-between sm:block">
-                                <div className="flex items-center gap-2">
-                                  <div>{day.day}</div>
-                                  <div className="text-xs text-white/50">{monthName}</div>
-                                </div>
-                                <div className="text-xs sm:hidden text-white/50 font-normal">{dayName}</div>
-                              </div>
-                            </div>
-                            <div className="flex-1 space-y-2 overflow-y-auto overflow-x-visible">
-                              {sortHackathonsByTime(day.events).map(hackathon => {
+                            <div className="flex-1 space-y-2 overflow-y-auto overflow-x-visible mb-2">
+                              {sortHackathonsByTime(day.events)
+                                .filter(hackathon => {
+                                  // Filter out multi-day hackathons (2-3 days) - they're shown above
+                                  const duration = getHackathonDuration(hackathon);
+                                  return duration < 2 || duration > 3;
+                                })
+                                .map(hackathon => {
                                 const hackathonPosition = getHackathonPosition(hackathon, new Date(day.date));
                                 const isMultiDay = hackathonPosition !== 'single';
                                 const duration = getHackathonDuration(hackathon);
@@ -1036,21 +1499,38 @@ const HackathonsPage = () => {
                                 
                                 const colors = isMultiDay && colorId !== null 
                                   ? colorVariants[colorId]
-                                  : { bg: 'bg-cyan-500/30', text: 'text-cyan-200', textTime: 'text-cyan-300/80', hover: 'hover:bg-cyan-500/40', border: 'border-cyan-400', line: 'bg-cyan-400/40' };
+                                  : { bg: 'bg-cyan-500/40', text: 'text-cyan-200', textTime: 'text-cyan-300/80', hover: 'hover:bg-cyan-500/50', border: 'border-cyan-400', line: 'bg-cyan-400/40' };
                                 
-                                // Determine border classes based on position - blocks extend and overlap
+                                // Make multi-day hackathons more prominent with stronger background
+                                let finalBg = colors.bg;
+                                if (isMultiDay) {
+                                  // Increase opacity for multi-day events to make them stand out
+                                  if (colors.bg.includes('/30')) {
+                                    finalBg = colors.bg.replace('/30', '/60');
+                                  } else if (colors.bg.includes('/40')) {
+                                    finalBg = colors.bg.replace('/40', '/60');
+                                  } else if (colors.bg.includes('/50')) {
+                                    finalBg = colors.bg.replace('/50', '/60');
+                                  }
+                                }
+                                
+                                // Determine border classes based on position - Google Calendar style seamless connection
                                 let borderClasses = '';
                                 let extendClasses = '';
+                                let zIndexClass = 'z-10';
                                 if (isMultiDay) {
                                   if (hackathonPosition === 'start') {
                                     borderClasses = `border-l-2 ${colors.border} border-t-2 border-b-2 rounded-l-md`;
-                                    extendClasses = 'mr-[-1px]'; // Extend right to overlap with next cell
+                                    extendClasses = 'mr-[-2px]'; // Extend right to seamlessly connect
+                                    zIndexClass = 'z-20';
                                   } else if (hackathonPosition === 'end') {
                                     borderClasses = `border-r-2 ${colors.border} border-t-2 border-b-2 rounded-r-md`;
-                                    extendClasses = 'ml-[-1px]'; // Extend left to overlap with previous cell
+                                    extendClasses = 'ml-[-2px]'; // Extend left to seamlessly connect
+                                    zIndexClass = 'z-20';
                                   } else if (hackathonPosition === 'middle') {
                                     borderClasses = `border-t-2 border-b-2 ${colors.border}`;
-                                    extendClasses = 'ml-[-1px] mr-[-1px]'; // Extend both sides
+                                    extendClasses = 'ml-[-2px] mr-[-2px]'; // Extend both sides seamlessly
+                                    zIndexClass = 'z-20';
                                   }
                                 } else {
                                   borderClasses = 'rounded-md';
@@ -1064,18 +1544,12 @@ const HackathonsPage = () => {
                                       setSelectedHackathon(hackathon);
                                       setIsModalOpen(true);
                                     }}
-                                    className={`text-xs sm:text-sm px-2 sm:px-3 py-2 cursor-pointer flex flex-col relative ${colors.bg} ${colors.text} ${colors.hover} ${borderClasses} ${extendClasses} transition-all duration-200 z-10`}
+                                    className={`text-xs sm:text-sm px-2 sm:px-3 py-2 cursor-pointer flex flex-col relative ${finalBg} ${colors.text} ${colors.hover} ${borderClasses} ${extendClasses} transition-all duration-200 ${zIndexClass}`}
                                     title={hackathon.name}
                                   >
-                                    {/* Start indicator dot */}
-                                    {isMultiDay && hackathonPosition === 'start' && (
-                                      <div className={`absolute -left-1.5 top-1/2 -translate-y-1/2 w-2.5 h-2.5 rounded-full ${colors.border.replace('border-', 'bg-')} border-2 border-white/60 shadow-lg z-30`}></div>
-                                    )}
+                                    {/* Start indicator dot - removed for cleaner Google Calendar look */}
                                     
-                                    {/* End indicator dot */}
-                                    {isMultiDay && hackathonPosition === 'end' && (
-                                      <div className={`absolute -right-1.5 top-1/2 -translate-y-1/2 w-2.5 h-2.5 rounded-full ${colors.border.replace('border-', 'bg-')} border-2 border-white/60 shadow-lg z-30`}></div>
-                                    )}
+                                    {/* End indicator dot - removed for cleaner Google Calendar look */}
                                     
                                     {/* Duration badge on start day */}
                                     {isMultiDay && hackathonPosition === 'start' && duration > 1 && (
@@ -1095,11 +1569,16 @@ const HackathonsPage = () => {
                                   </div>
                                 );
                               })}
-                              {day.events.length === 0 && (
-                                <div className="text-xs text-white/30 text-center py-4">
-                                  No hackathons
-                                </div>
-                              )}
+                            </div>
+                            {/* Day number at bottom left */}
+                            <div className={`text-sm sm:text-base font-medium mt-auto pt-2 flex-shrink-0 ${
+                              isToday ? 'text-cyan-300' : 'text-white/70'
+                            }`}>
+                              <div className="flex items-center gap-2">
+                                <div>{day.day}</div>
+                                <div className="text-xs text-white/50">{monthName}</div>
+                              </div>
+                              <div className="text-xs sm:hidden text-white/50 font-normal mt-1">{dayName}</div>
                             </div>
                           </div>
                         );

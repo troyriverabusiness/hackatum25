@@ -50,7 +50,7 @@ const ScholarshipsPage = () => {
       const transformedScholarships = (data || []).map(scholarship => {
         console.log('Processing scholarship:', scholarship);
         return {
-          id: scholarship.id,
+        id: scholarship.id,
           title: scholarship.title,
           provider: scholarship.provider,
           shortDescription: scholarship.short_description,
@@ -58,8 +58,8 @@ const ScholarshipsPage = () => {
           deadline: scholarship.deadline,
           studyLevel: parseArray(scholarship.study_level),
           fieldsOfStudy: parseArray(scholarship.fields_of_study),
-          isHighlight: scholarship.is_highlight || false,
-          createdAt: scholarship.created_at,
+        isHighlight: scholarship.is_highlight || false,
+        createdAt: scholarship.created_at,
           updatedAt: scholarship.updated_at,
         };
       });
