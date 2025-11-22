@@ -1,0 +1,807 @@
+{
+  "name": "Link –> Telegram status update + DB entry (testing)",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "589d8966-676e-4381-8f8f-a3885c27f1b7",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -528,
+        64
+      ],
+      "id": "9d366d2a-2a2d-4f36-b601-d9ec049bb286",
+      "name": "Webhook",
+      "webhookId": "589d8966-676e-4381-8f8f-a3885c27f1b7"
+    },
+    {
+      "parameters": {
+        "jsCode": "return items.map(item => {\n\n  const data = item.json;\n\n  // --- Safe field extraction\n  const name = data.name ?? \"Unnamed Event\";\n  const date = data.start_date ?? null;       // \"2023-12-04\"\n  const time = data.start_time ?? null;       // \"18:00:00\"\n  const locationRaw = data.location ?? \"Location TBA\";\n  const description = data.description ?? \"No description available.\";\n  const link = data.link ?? \"#\";\n\n  // --- Create formatted date string: \"Dec 4, 18:00\"\n  let dateStr = \"Date TBA\";\n\n  try {\n    if (date && time) {\n      const d = new Date(`${date}T${time}`);\n      const datePart = d.toLocaleDateString(\"en-US\", { month: \"short\", day: \"numeric\" });\n      const timePart = d.toLocaleTimeString(\"en-US\", { hour: \"2-digit\", minute: \"2-digit\", hour12: false });\n      dateStr = `${datePart}, ${timePart}`;\n    } else if (date) {\n      const d = new Date(date);\n      const datePart = d.toLocaleDateString(\"en-US\", { month: \"short\", day: \"numeric\" });\n      dateStr = datePart;\n    }\n  } catch {}\n\n  // --- Only keep the location name (before first comma)\n  const locationName = locationRaw.split(\",\")[0].trim();\n\n  // --- Final formatted message\n  const message =\n`🎉 ${name} | ${dateStr}\n\n${description}\n\n📍 ${locationName}\n🔗 ${link}\n\nFeel free to join, and share it with anyone who might enjoy it 🩵`;\n\n  return { json: { text: message } };\n});\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2192,
+        -224
+      ],
+      "id": "e729e095-2fa9-432d-b0cf-c7058a9a4cba",
+      "name": "Format Event message"
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "value": "llama3.2:3b",
+          "mode": "list",
+          "cachedResultName": "llama3.2:3b"
+        },
+        "messages": {
+          "values": [
+            {
+              "content": "={{ $('Scrape a url and get its content').item.json.data.json.description }}"
+            }
+          ]
+        },
+        "options": {
+          "system": "You are an event-description summarizer.\nYour task: compress long event descriptions into a single short sentence of maximum 12 words.\n\nRequirements:\n\nOutput only the summary sentence.\n\nNo emojis, no hashtags, no extra commentary.\n\nKeep it objective, factual, neutral, no hype language.\n\nFocus on the core purpose of the event (e.g., hackathon, workshop, networking).\n\nAvoid dates, location, organizers, or names unless essential.\n\nNo filler phrases (“this event is about”).\n\nNo quoting text from the input.\n\nResult should be clear, concise, and human-sounding.\n\nIf the description is unclear, produce the simplest reasonable guess.\n\nEXAMPLE INPUT → OUTPUT\n\nInput:\n\"Road to START Hack is a hackathon that brings together 200 innovators from diverse fields and backgrounds to solve real-world challenges in just 24 hours. Participants are encouraged to keep the scope tight, with mentors available to support and guide you whenever needed. The goal is to create a prototype you’ll be proud to share. This event is beginner-friendly and no prior experience is required, bring your ideas and motivation. By the end of the 24 hours, you can say 'hello users' with a demo and a path to continue your project.\"\n\nOutput:\n\"24-hour hackathon to build prototypes with mentors and beginner-friendly support.\"\n\nReturn NO exclamation marks"
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.ollama",
+      "typeVersion": 1,
+      "position": [
+        1168,
+        -224
+      ],
+      "id": "923e402d-6b35-4c23-99bc-06a9ab60a11d",
+      "name": "Summarize Description",
+      "credentials": {
+        "ollamaApi": {
+          "id": "hdBYHEKU5h9PAkDi",
+          "name": "Ollama account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "dac10d77-96a9-440b-a1d8-350e144fe254",
+              "leftValue": "={{ $json }}",
+              "rightValue": "0",
+              "operator": {
+                "type": "object",
+                "operation": "empty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        944,
+        -128
+      ],
+      "id": "9cacf9ef-cd45-4ae4-a6d0-148396913902",
+      "name": "Existing Matches = is Empty"
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "value": "llama3.2:3b",
+          "mode": "list",
+          "cachedResultName": "llama3.2:3b"
+        },
+        "messages": {
+          "values": [
+            {
+              "content": "={{ $json.data.json.name }}, {{ $json.data.json.description }}"
+            }
+          ]
+        },
+        "options": {
+          "system": "Classify this event as \"event\" or \"hackathon\".\nReturn only one word: event or hackathon."
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.ollama",
+      "typeVersion": 1,
+      "position": [
+        144,
+        64
+      ],
+      "id": "be2fcfd3-6b5b-4b31-ac9b-8d24d771fff1",
+      "name": "Classify: Event OR Hackathon",
+      "credentials": {
+        "ollamaApi": {
+          "id": "hdBYHEKU5h9PAkDi",
+          "name": "Ollama account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "scrape",
+        "url": "={{ $json.url }}",
+        "scrapeOptions": {
+          "options": {
+            "formats": {
+              "format": [
+                {
+                  "type": "json",
+                  "prompt": "Extract all event information from the page. The output must strictly follow this JSON schema. Guess missing fields if needed. Dates must be ISO format if possible. Ignore marketing fluff and output only clean text.",
+                  "schema": "{\n  \"type\": \"object\",\n  \"properties\": {\n    \"name\": { \"type\": \"string\", \"description\": \"Name of the event\" },\n    \"date\": { \"type\": \"string\", \"description\": \"Start and/or end date of the event in ISO format\" },\n    \"location\": { \"type\": \"string\", \"description\": \"Event location, venue name, address if available\" },\n    \"organizer\": { \"type\": \"string\", \"description\": \"Organizer or host of the event\" },\n    \"description\": { \"type\": \"string\", \"description\": \"Clean description of the event without markdown\" },\n    \"link\": { \"type\": \"string\", \"description\": \"The event link being scraped\" }\n  },\n  \"required\": [\"name\", \"date\", \"description\", \"link\"],\n  \"instructions\": \"Extract event information from the webpage and strictly return JSON matching this schema. Convert dates into a single ISO string if possible.\"\n}\n"
+                }
+              ]
+            },
+            "headers": {},
+            "timeout": 60000
+          }
+        },
+        "requestOptions": {}
+      },
+      "type": "@mendable/n8n-nodes-firecrawl.firecrawl",
+      "typeVersion": 1,
+      "position": [
+        -80,
+        64
+      ],
+      "id": "a39aced5-29a1-4cb1-9cf4-ba0c0f5999eb",
+      "name": "Scrape a url and get its content",
+      "credentials": {
+        "firecrawlApi": {
+          "id": "wgV8O2sEZNhCcZ38",
+          "name": "Firecrawl account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const url = $input.first().json.body.event_link;\n\ntry {\n  if (typeof url !== \"string\") {\n    return [{ valid: false, reason: \"Invalid URL\" }];\n  }\n\n  // Remove everything after \"?\"\n  const cleaned = url.split(\"?\")[0];\n\n  const blockedDomains = [\"youtube.com\", \"youtu.be\", \"tiktok.com\"];\n  const lower = cleaned.toLowerCase();\n\n  if (blockedDomains.some(d => lower.includes(d))) {\n    return [{ valid: false, reason: \"Disallowed domain\" }];\n  }\n\n  return [{ valid: true, url: cleaned }];\n} catch {\n  return [{ valid: false, reason: \"Invalid URL\" }];\n}\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -304,
+        64
+      ],
+      "id": "94a90730-63b5-4fc3-bf29-2170a6d84bfd",
+      "name": "Validate URL is from Event"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.content }}",
+                    "rightValue": "event",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "6a92a203-b65d-4c74-af1e-4b2b38325a72"
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "6aeab34f-c2ea-4bd0-997b-b2d83e097cdf",
+                    "leftValue": "={{ $json.content }}",
+                    "rightValue": "hackathon",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.3,
+      "position": [
+        496,
+        64
+      ],
+      "id": "7bee94b4-0316-4c43-b020-890efafeb46b",
+      "name": "Event VS Hackathon"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "dac10d77-96a9-440b-a1d8-350e144fe254",
+              "leftValue": "={{ $json }}",
+              "rightValue": "0",
+              "operator": {
+                "type": "object",
+                "operation": "empty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        944,
+        256
+      ],
+      "id": "43a3f5d1-138d-4e41-9a6d-7661e3ab06eb",
+      "name": "Existing Matches = is Empty1"
+    },
+    {
+      "parameters": {
+        "chatId": "6541342997",
+        "text": "=🧩 DUPLICATE EVENT: {{ $('Validate URL is from Event').item.json.url }}",
+        "additionalFields": {
+          "appendAttribution": false
+        }
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        1232,
+        -32
+      ],
+      "id": "321cf436-cc7f-4147-b2f8-3c449292211c",
+      "name": "Notify: Duplicate Event",
+      "webhookId": "6ba146a7-247c-4a21-800e-514feffa8ba7",
+      "credentials": {
+        "telegramApi": {
+          "id": "e4n2hHugkUF7rB9w",
+          "name": "Partner Events Pinger Credential"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "chatId": "6541342997",
+        "text": "=🚀 DUPLICATE HACKATHON: {{ $('Validate URL is from Event').item.json.url }}",
+        "additionalFields": {
+          "appendAttribution": false
+        }
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        1232,
+        352
+      ],
+      "id": "57f947c7-d22e-45e5-a771-1614cfc9eb51",
+      "name": "Notify: Duplicate Hackathon",
+      "webhookId": "6ba146a7-247c-4a21-800e-514feffa8ba7",
+      "credentials": {
+        "telegramApi": {
+          "id": "e4n2hHugkUF7rB9w",
+          "name": "Partner Events Pinger Credential"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "content": "## Notify humans to personally research",
+        "height": 128
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        1472,
+        288
+      ],
+      "typeVersion": 1,
+      "id": "d8153525-bf03-45ed-8676-fd58c1d6b18e",
+      "name": "Sticky Note"
+    },
+    {
+      "parameters": {
+        "tableId": "events",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "name",
+              "fieldValue": "={{ $('Scrape a url and get its content').item.json.data.json.name }}"
+            },
+            {
+              "fieldId": "description",
+              "fieldValue": "={{ $('Summarize Description').item.json.content }}"
+            },
+            {
+              "fieldId": "start_date",
+              "fieldValue": "={{ $json.start_date }}"
+            },
+            {
+              "fieldId": "start_time",
+              "fieldValue": "={{ $json.start_time }}"
+            },
+            {
+              "fieldId": "organisers",
+              "fieldValue": "={{ $('Scrape a url and get its content').item.json.data.json.organizer }}"
+            },
+            {
+              "fieldId": "location",
+              "fieldValue": "={{ $json.location }}"
+            },
+            {
+              "fieldId": "format",
+              "fieldValue": "In-Person"
+            },
+            {
+              "fieldId": "link",
+              "fieldValue": "={{ $('Validate URL is from Event').item.json.url }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        1968,
+        -224
+      ],
+      "id": "00349db3-a8d0-4481-b29c-e1549498f914",
+      "name": "Create Event row",
+      "credentials": {
+        "supabaseApi": {
+          "id": "TAT9qafzVMzcUqZP",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combineBy": "combineByPosition",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        1744,
+        -224
+      ],
+      "id": "a58552c1-b02c-41a7-8f43-36ffe435862b",
+      "name": "Merge"
+    },
+    {
+      "parameters": {
+        "jsCode": "return items.map(item => {\n  const raw = $('Scrape a url and get its content').first().json.data.json.location;\n\n  if (!raw || typeof raw !== \"string\") {\n    return { json: { location: null } };\n  }\n\n  // Split by commas\n  const parts = raw.split(\",\").map(p => p.trim());\n  const first = parts[0];\n\n  // Detect a street pattern: ends with a number (e.g. \"Pacellistraße 2\")\n  const looksLikeStreet = /\\b\\d+$/.test(first);\n\n  if (!looksLikeStreet) {\n    // First part is a real venue name\n    return {\n      json: {\n        location: first\n      }\n    };\n  }\n\n  // Otherwise, it's a street → no venue name found\n  return {\n    json: {\n      location: raw\n    }\n  };\n});\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1520,
+        -128
+      ],
+      "id": "a8ff7f3a-5c7c-4612-8d7b-f7fc99875068",
+      "name": "Format: Location"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Input: items[i].json.datetime  (e.g. \"2023-12-04T18:00:00+01:00\")\n\nreturn items.map(item => {\n  const raw = $('Scrape a url and get its content').first().json.data.json.date;\n  \n  if (!raw) {\n    return {\n      json: {\n        start_date: null,\n        start_time: null,\n        error: \"No datetime provided\"\n      }\n    };\n  }\n\n  try {\n    // Expecting format: YYYY-MM-DDTHH:mm:ss+HH:MM\n    const [datePart, timePart] = raw.split(\"T\");\n\n    // timePart contains timezone → \"18:00:00+01:00\"\n    const timeOnly = timePart.split(/[+-]/)[0];   // → \"18:00:00\"\n\n    return {\n      json: {\n        start_date: datePart,  // Exact date, unchanged\n        start_time: timeOnly,  // Exact time, unaffected by timezone\n      }\n    };\n\n  } catch (e) {\n    return {\n      json: {\n        start_date: null,\n        start_time: null,\n        error: \"Invalid date format\"\n      }\n    };\n  }\n});\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1520,
+        -320
+      ],
+      "id": "4375a55c-3d53-4b14-9878-bb2f24e12317",
+      "name": "Format: Correct Date & Time"
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "tableId": "events",
+        "limit": 2,
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "link",
+              "condition": "eq",
+              "keyValue": "={{ $('Validate URL is from Event').item.json.url }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        720,
+        -128
+      ],
+      "id": "3e95e739-434f-495d-bc7b-e2a4e193f3a1",
+      "name": "Check if exists",
+      "alwaysOutputData": true,
+      "credentials": {
+        "supabaseApi": {
+          "id": "TAT9qafzVMzcUqZP",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "tableId": "hackathons",
+        "limit": 2,
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "link",
+              "condition": "eq",
+              "keyValue": "={{ $('Validate URL is from Event').item.json.url }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        720,
+        256
+      ],
+      "id": "c18a72c4-e447-4370-9763-8987797b477b",
+      "name": "Check if exists1",
+      "alwaysOutputData": true,
+      "credentials": {
+        "supabaseApi": {
+          "id": "TAT9qafzVMzcUqZP",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "chatId": "6541342997",
+        "text": "=NEW HACKATHON 🔥:  {{ $('Validate URL is from Event').item.json.url }}",
+        "additionalFields": {
+          "appendAttribution": false
+        }
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        1232,
+        160
+      ],
+      "id": "6fd3963d-da39-4cc6-8312-6f60c5da238b",
+      "name": "Request Human",
+      "webhookId": "7369dcde-704d-4266-bebc-f7021307b239",
+      "credentials": {
+        "telegramApi": {
+          "id": "e4n2hHugkUF7rB9w",
+          "name": "Partner Events Pinger Credential"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "chatId": "6541342997",
+        "text": "={{ $json.text }}",
+        "additionalFields": {
+          "appendAttribution": false
+        }
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        2416,
+        -224
+      ],
+      "id": "75a4a2ee-2db6-43f8-ab90-2fdd844185ee",
+      "name": "Send Whatsapp Postable",
+      "webhookId": "851336cd-a927-49da-b259-60bbab9c64e0",
+      "credentials": {
+        "telegramApi": {
+          "id": "e4n2hHugkUF7rB9w",
+          "name": "Partner Events Pinger Credential"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "tableId": "events",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "id",
+              "condition": "eq",
+              "keyValue": "={{ $('Create Event row').item.json.id }}"
+            }
+          ]
+        },
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "posted_whatsapp",
+              "fieldValue": "true"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        2640,
+        -224
+      ],
+      "id": "25a22571-f1fd-4ecb-8542-2869fbfd0c23",
+      "name": "Mark ✅: Whatsapp Posted",
+      "credentials": {
+        "supabaseApi": {
+          "id": "TAT9qafzVMzcUqZP",
+          "name": "Supabase account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Validate URL is from Event",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Event message": {
+      "main": [
+        [
+          {
+            "node": "Send Whatsapp Postable",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Summarize Description": {
+      "main": [
+        [
+          {
+            "node": "Format: Correct Date & Time",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Format: Location",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Existing Matches = is Empty": {
+      "main": [
+        [
+          {
+            "node": "Summarize Description",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Notify: Duplicate Event",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Scrape a url and get its content": {
+      "main": [
+        [
+          {
+            "node": "Classify: Event OR Hackathon",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate URL is from Event": {
+      "main": [
+        [
+          {
+            "node": "Scrape a url and get its content",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Classify: Event OR Hackathon": {
+      "main": [
+        [
+          {
+            "node": "Event VS Hackathon",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Event VS Hackathon": {
+      "main": [
+        [
+          {
+            "node": "Check if exists",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Check if exists1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Existing Matches = is Empty1": {
+      "main": [
+        [
+          {
+            "node": "Request Human",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Notify: Duplicate Hackathon",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Event row": {
+      "main": [
+        [
+          {
+            "node": "Format Event message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge": {
+      "main": [
+        [
+          {
+            "node": "Create Event row",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format: Location": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Format: Correct Date & Time": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check if exists": {
+      "main": [
+        [
+          {
+            "node": "Existing Matches = is Empty",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check if exists1": {
+      "main": [
+        [
+          {
+            "node": "Existing Matches = is Empty1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Request Human": {
+      "main": [
+        []
+      ]
+    },
+    "Send Whatsapp Postable": {
+      "main": [
+        [
+          {
+            "node": "Mark ✅: Whatsapp Posted",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "02202788-205e-41f8-a0f2-5ef86ecebef3",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "899fa590e98333020bad9fbdb8e7039b91238d15b0e9182f8abddbba1c17dedf"
+  },
+  "id": "1ryn53mom7DjhmrR",
+  "tags": []
+}

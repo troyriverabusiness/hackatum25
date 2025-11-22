@@ -1,0 +1,522 @@
+{
+  "name": "[HACKATHONS] - Scrape and Insert",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "2099b1c9-6d31-4b77-8227-4297151a2f0d",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        0,
+        0
+      ],
+      "id": "072b2d6c-f193-4936-9cfb-ec91081cda5f",
+      "name": "Webhook",
+      "webhookId": "2099b1c9-6d31-4b77-8227-4297151a2f0d"
+    },
+    {
+      "parameters": {
+        "jsCode": "const url = $input.first().json.body.event_link;\n\ntry {\n  if (typeof url !== \"string\") {\n    return [{ valid: false, reason: \"Invalid URL\" }];\n  }\n\n  // Remove everything after \"?\"\n  const cleaned = url.split(\"?\")[0];\n\n  const blockedDomains = [\"youtube.com\", \"youtu.be\", \"tiktok.com\"];\n  const lower = cleaned.toLowerCase();\n\n  if (blockedDomains.some(d => lower.includes(d))) {\n    return [{ valid: false, reason: \"Disallowed domain\" }];\n  }\n\n  return [{ valid: true, url: cleaned }];\n} catch {\n  return [{ valid: false, reason: \"Invalid URL\" }];\n}\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        224,
+        0
+      ],
+      "id": "2b50e84b-ff21-4f14-8067-4c4d7deb0eec",
+      "name": "Validate URL"
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "tableId": "hackathons",
+        "limit": 2,
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "link",
+              "condition": "eq",
+              "keyValue": "={{ $json.url }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        448,
+        0
+      ],
+      "id": "5fa31fea-36fb-4237-a199-fce2521d418c",
+      "name": "Hackathon exists?",
+      "alwaysOutputData": true,
+      "credentials": {
+        "supabaseApi": {
+          "id": "TAT9qafzVMzcUqZP",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "chatId": "6541342997",
+        "text": "=🚀 DUPLICATE HACKATHON: {{ $('Validate URL').item.json.url }}",
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        896,
+        96
+      ],
+      "id": "28afb143-4091-4a59-8b16-d99bca777c59",
+      "name": "Message: Duplicate Hackathon",
+      "webhookId": "a34dbb12-c54c-4c64-9536-14d39b1da6dc",
+      "credentials": {
+        "telegramApi": {
+          "id": "e4n2hHugkUF7rB9w",
+          "name": "Partner Events Pinger Credential"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "a4754060-52ef-4e8f-90fb-4b6b0170e1bc",
+              "leftValue": "={{ $json }}",
+              "rightValue": "",
+              "operator": {
+                "type": "object",
+                "operation": "empty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        672,
+        0
+      ],
+      "id": "e2f4bbd7-5b71-4ca5-b02a-c723f93f008d",
+      "name": "no duplicates?"
+    },
+    {
+      "parameters": {
+        "operation": "scrape",
+        "url": "={{ $('Validate URL').item.json.url }}",
+        "scrapeOptions": {
+          "options": {
+            "formats": {
+              "format": [
+                {
+                  "type": "json",
+                  "prompt": "Extract hackathon information from the webpage and return JSON strictly matching the provided schema.  Rules: - All fields except “prizes” and “signup_deadline” must be extracted and cannot be null. - If “prizes” or “signup_deadline” are not present on the page, return null. - Convert dates to ISO format (YYYY-MM-DD) whenever possible. - Convert times to 24h format (HH:MM). - Do not hallucinate or infer details — only return what appears explicitly on the page. - “description” must be a clean 1–3 sentence summary without markdown. - “organisers” must list companies, organizations, or institutions hosting the hackathon. - “signup_link” must be the main Apply/Register button (CTA) on the page. - Return only the JSON object defined by the schema.",
+                  "schema": "{\n  \"type\": \"object\",\n  \"properties\": {\n    \"name\": { \n      \"type\": \"string\", \n      \"description\": \"Official name of the hackathon\" \n    },\n    \"description\": { \n      \"type\": \"string\", \n      \"description\": \"Short, clean description of the hackathon with no markdown\" \n    },\n    \"start_date\": { \n      \"type\": \"string\", \n      \"description\": \"Start date of the hackathon in ISO format (YYYY-MM-DD) if possible\" \n    },\n    \"start_time\": { \n      \"type\": \"string\", \n      \"description\": \"Start time in 24h format (HH:MM)\" \n    },\n    \"end_date\": { \n      \"type\": \"string\", \n      \"description\": \"End date of the hackathon in ISO format (YYYY-MM-DD) if possible\" \n    },\n    \"end_time\": { \n      \"type\": \"string\", \n      \"description\": \"End time in 24h format (HH:MM)\" \n    },\n    \"location\": {\n      \"type\": \"string\",\n      \"description\": \"Event location, city or venue name if available\"\n    },\n    \"organisers\": { \n      \"type\": \"string\", \n      \"description\": \"Organizer(s) or host(s) of the hackathon\" \n    },\n    \"signup_link\": { \n      \"type\": \"string\", \n      \"description\": \"Registration or application link for the hackathon\" \n    },\n    \"prizes\": { \n      \"type\": \"string\", \n      \"description\": \"What winners receive; return null if not provided\" \n    },\n    \"signup_deadline\": { \n      \"type\": \"string\", \n      \"description\": \"Signup or registration deadline in ISO format; return null if not stated\" \n    },\n    \"link\": {\n      \"type\": \"string\",\n      \"description\": \"The hackathon page URL being scraped\"\n    }\n  },\n  \"required\": [\n    \"hackathon_name\",\n    \"description\",\n    \"start_date\",\n    \"start_time\",\n    \"end_date\",\n    \"end_time\",\n    \"location\",\n    \"organisers\",\n    \"signup_link\",\n    \"link\"\n  ],\n  \"instructions\": \"Extract hackathon information from the webpage and strictly return JSON matching this schema. Convert dates to ISO (YYYY-MM-DD) and times to 24h format. If prizes or signup_deadline are missing, return null. For location, extract venue or city if available. Do not invent or guess any details.\"\n}\n"
+                }
+              ]
+            },
+            "headers": {},
+            "timeout": 60000
+          }
+        },
+        "requestOptions": {}
+      },
+      "type": "@mendable/n8n-nodes-firecrawl.firecrawl",
+      "typeVersion": 1,
+      "position": [
+        896,
+        -96
+      ],
+      "id": "d1d34bd4-a721-453b-9291-1e3256bac891",
+      "name": "Scrape a url and get its content",
+      "credentials": {
+        "firecrawlApi": {
+          "id": "wgV8O2sEZNhCcZ38",
+          "name": "Firecrawl account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "content": "### Change to receive from other workflow",
+        "height": 80
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        -80,
+        -96
+      ],
+      "typeVersion": 1,
+      "id": "1c198d36-0da3-4635-a631-51338ece49da",
+      "name": "Sticky Note"
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "value": "llama3.2:3b",
+          "mode": "list",
+          "cachedResultName": "llama3.2:3b"
+        },
+        "messages": {
+          "values": [
+            {
+              "content": "={{ $json.data.json.description }}"
+            }
+          ]
+        },
+        "options": {
+          "system": "You are a concise assistant that summarizes hackathon descriptions.\n\nYour task:\n- You receive a single hackathon description as plain text.\n- If the description has **30 words or fewer**, return it **unchanged**.\n- If the description has **more than 30 words**, summarize it into a **short, clear description of max 20 words**.\n\nContent rules:\n- Focus on: theme/focus of the hackathon, target participants, and main goal or outcome.\n- Do NOT add information that is not in the original text.\n- Do NOT use markdown, emojis, or bullet points.\n- Output only the final text, with no explanations or labels.\n"
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.ollama",
+      "typeVersion": 1,
+      "position": [
+        1120,
+        -192
+      ],
+      "id": "41b55e0d-a59f-47e1-b69f-34c2e14bea57",
+      "name": "Summarize Description",
+      "credentials": {
+        "ollamaApi": {
+          "id": "hdBYHEKU5h9PAkDi",
+          "name": "Ollama account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "return items.map(item => {\n  const raw = $('Scrape a url and get its content').first().json.data.json.location;\n\n  if (!raw || typeof raw !== \"string\") {\n    return { json: { location: null } };\n  }\n\n  // Split by commas\n  const parts = raw.split(\",\").map(p => p.trim());\n  const first = parts[0];\n\n  // Detect a street pattern: ends with a number (e.g. \"Pacellistraße 2\")\n  const looksLikeStreet = /\\b\\d+$/.test(first);\n\n  if (!looksLikeStreet) {\n    // First part is a real venue name\n    return {\n      json: {\n        location: first\n      }\n    };\n  }\n\n  // Otherwise, it's a street → no venue name found\n  return {\n    json: {\n      location: raw\n    }\n  };\n});\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1184,
+        0
+      ],
+      "id": "19dc4921-b54d-4451-bd7a-98499694da8d",
+      "name": "Format Location"
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combineBy": "combineByPosition",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        1472,
+        -96
+      ],
+      "id": "269d1e51-6607-4b48-a56a-46aa83fc93ab",
+      "name": "Merge"
+    },
+    {
+      "parameters": {
+        "tableId": "hackathons",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "name",
+              "fieldValue": "={{ $('Scrape a url and get its content').item.json.data.json.name }}"
+            },
+            {
+              "fieldId": "description",
+              "fieldValue": "={{ $json.content }}"
+            },
+            {
+              "fieldId": "start_date",
+              "fieldValue": "={{ $('Scrape a url and get its content').item.json.data.json.start_date }}"
+            },
+            {
+              "fieldId": "start_time",
+              "fieldValue": "={{ $('Scrape a url and get its content').item.json.data.json.start_time }}"
+            },
+            {
+              "fieldId": "end_date",
+              "fieldValue": "={{ $('Scrape a url and get its content').item.json.data.json.end_date }}"
+            },
+            {
+              "fieldId": "end_time",
+              "fieldValue": "={{ $('Scrape a url and get its content').item.json.data.json.end_time }}"
+            },
+            {
+              "fieldId": "prizes",
+              "fieldValue": "={{ $('Scrape a url and get its content').item.json.data.json.prizes }}"
+            },
+            {
+              "fieldId": "organisers",
+              "fieldValue": "={{ $('Scrape a url and get its content').item.json.data.json.organisers }}"
+            },
+            {
+              "fieldId": "link",
+              "fieldValue": "={{ $('Validate URL').item.json.url }}"
+            },
+            {
+              "fieldId": "signup_deadline",
+              "fieldValue": "={{ $('Scrape a url and get its content').item.json.data.json.signup_deadline }}"
+            },
+            {
+              "fieldId": "location",
+              "fieldValue": "={{ $json.location }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        1696,
+        -96
+      ],
+      "id": "7ca9eb76-f72b-42a5-aa69-1b6b2211f8ce",
+      "name": "Create Hackathon row",
+      "credentials": {
+        "supabaseApi": {
+          "id": "TAT9qafzVMzcUqZP",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "return items.map(item => {\n  const e = item.json;\n\n  // --- Safe fields\n  const name = e.name ?? \"Unnamed Hackathon\";\n  const description = e.description ?? \"No description available.\";\n  const startDate = e.start_date ?? \"Date TBA\";\n  const startTime = e.start_time ?? \"\";\n  const endDate = e.end_date ?? \"\";\n  const endTime = e.end_time ?? \"\";\n  const location = e.location ?? \"Location TBA\";\n  const organisers = e.organisers ?? \"Organisers TBA\";\n  const link = e.link ?? \"#\";\n  const signupDeadline = e.signup_deadline ?? null;\n  const prizes = e.prizes;\n\n  // --- Helpers\n  function formatDate(d) {\n    try {\n      return new Date(d).toLocaleDateString(\"en-US\", {\n        month: \"short\",\n        day: \"numeric\"\n      });\n    } catch {\n      return d;\n    }\n  }\n\n  const sd = formatDate(startDate);\n  const ed = endDate ? formatDate(endDate) : null;\n\n  const st = startTime ? startTime.slice(0, 5) : \"\";\n  const et = endTime ? endTime.slice(0, 5) : \"\";\n\n  // --- Date line\n  let dateLine = `${sd}`;\n  if (st) dateLine += `, ${st}`;\n  if (ed) dateLine += `  →  ${ed}`;\n  if (et) dateLine += `, ${et}`;\n\n  // --- Optional lines\n  const prizeLine = prizes\n    ? `🏆 Prizes: ${prizes}`\n    : `🏆 Prizes: To be revealed...`;\n\n  const deadlineLine = signupDeadline\n    ? `🗓️ Deadline: ${formatDate(signupDeadline)}`\n    : null;\n\n  // --- EXACT WhatsApp structure\n  let final = `NEW HACKATHON ALERT 🔥🚀\\n\\n`;\n  final += `*🧩 ${name}*\\n`;\n  final += `📅 ${dateLine}\\n`;\n  final += `📍 ${location}\\n`;\n  final += `👥 ${organisers}\\n\\n`;\n  final += `✨ ${description}\\n\\n`;\n  final += `${prizeLine}\\n`;\n  if (deadlineLine) final += `${deadlineLine}\\n\\n`;\n  else final += `\\n`; // preserve spacing if no deadline\n  final += `🔗 Apply: ${link}\\n\\n`;\n  final += `— Share this with Everyone you know! 🙌🩵`\n\n  return {\n    json: {\n      formatted: final\n    }\n  };\n});\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1920,
+        -96
+      ],
+      "id": "b4ca6c44-a5fd-4401-a66e-751fbf67375b",
+      "name": "Format Hackathon Post"
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "tableId": "hackathons",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "id",
+              "condition": "eq",
+              "keyValue": "={{ $('Create Hackathon row').item.json.id }}"
+            }
+          ]
+        },
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "posted_whatsapp",
+              "fieldValue": "true"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        2368,
+        -96
+      ],
+      "id": "a4dba32f-f141-4af7-a36e-5e09ee640f69",
+      "name": "Check ✅: Posted WhatsApp",
+      "credentials": {
+        "supabaseApi": {
+          "id": "TAT9qafzVMzcUqZP",
+          "name": "Supabase account"
+        }
+      },
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "chatId": "6541342997",
+        "text": "={{ $json.formatted }}",
+        "additionalFields": {
+          "appendAttribution": false
+        }
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        2144,
+        -96
+      ],
+      "id": "2cabf8f2-4a27-4e14-b6e7-cf2b9c34f289",
+      "name": "Hackathon WhatsApp message",
+      "webhookId": "553c0b9d-8d1e-4f1b-a694-fc6bc4f1aae7",
+      "credentials": {
+        "telegramApi": {
+          "id": "e4n2hHugkUF7rB9w",
+          "name": "Partner Events Pinger Credential"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Validate URL",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate URL": {
+      "main": [
+        [
+          {
+            "node": "Hackathon exists?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Hackathon exists?": {
+      "main": [
+        [
+          {
+            "node": "no duplicates?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "no duplicates?": {
+      "main": [
+        [
+          {
+            "node": "Scrape a url and get its content",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Message: Duplicate Hackathon",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Scrape a url and get its content": {
+      "main": [
+        [
+          {
+            "node": "Summarize Description",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Format Location",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Summarize Description": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Location": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Merge": {
+      "main": [
+        [
+          {
+            "node": "Create Hackathon row",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Hackathon row": {
+      "main": [
+        [
+          {
+            "node": "Format Hackathon Post",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Hackathon Post": {
+      "main": [
+        [
+          {
+            "node": "Hackathon WhatsApp message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Hackathon WhatsApp message": {
+      "main": [
+        [
+          {
+            "node": "Check ✅: Posted WhatsApp",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "103f7b0b-8c86-4c98-ba85-31ab0a029578",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "899fa590e98333020bad9fbdb8e7039b91238d15b0e9182f8abddbba1c17dedf"
+  },
+  "id": "RqcaIxiFXzFvDkC8",
+  "tags": []
+}
