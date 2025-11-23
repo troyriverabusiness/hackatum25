@@ -126,11 +126,6 @@ body {
   inset: 0;
   background: linear-gradient(120deg, rgba(96, 167, 238, 0.85), rgba(153, 202, 250, 0.75));
   opacity: 1;
-  transition: opacity 0.4s ease;
-}
-
-.action-button:hover::before {
-  opacity: 0.85;
 }
 
 .action-button span {
@@ -143,11 +138,11 @@ body {
 }
 
 .btn-secondary {
-  @apply inline-flex items-center justify-center gap-2 rounded-full border border-white/20 bg-white/5 px-7 py-3 text-base font-medium text-white/70 transition-colors duration-300 ease-out hover:border-white/30 hover:text-white;
+  @apply inline-flex items-center justify-center gap-2 rounded-full border border-white/20 bg-white/5 px-7 py-3 text-base font-medium text-white/70;
 }
 
 .btn-partners {
-  @apply inline-flex items-center justify-center gap-2 rounded-full border border-white/30 bg-white/90 px-8 py-3 text-base font-medium text-[#020817]/90 transition-all duration-300 ease-out hover:bg-white hover:border-white/40;
+  @apply inline-flex items-center justify-center gap-2 rounded-full border border-white/30 bg-white/90 px-8 py-3 text-base font-medium text-[#020817]/90;
 }
 
 .heading-1 {
