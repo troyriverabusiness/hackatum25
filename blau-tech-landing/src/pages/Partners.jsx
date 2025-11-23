@@ -4,11 +4,8 @@ import {
   CalendarIcon, 
   UserGroupIcon,
   SparklesIcon,
-  TrophyIcon,
   RocketLaunchIcon,
-  ChartBarIcon,
-  LightBulbIcon,
-  GlobeAltIcon
+  LightBulbIcon
 } from '@heroicons/react/24/outline';
 import Navbar from '../components/Navbar';
 import StaticBackground from '../components/StaticBackground';
@@ -217,34 +214,19 @@ const Partners = () => {
 
   const benefits = [
     {
-      title: 'Access to Talent',
-      description: 'Connect with Bavaria\'s brightest tech students and professionals.',
+      title: 'Recruit Top Talent Early',
+      description: 'Get first access to Bavaria\'s brightest tech minds before they hit the job market.',
       icon: SparklesIcon,
     },
     {
-      title: 'Brand Visibility',
-      description: 'Showcase your brand to a highly engaged tech audience.',
+      title: 'Amplify Your Brand',
+      description: 'Reach 400+ tech enthusiasts and position your company as an innovation leader in Bavaria.',
       icon: RocketLaunchIcon,
     },
     {
-      title: 'Community Impact',
-      description: 'Support the next generation of tech innovators.',
-      icon: TrophyIcon,
-    },
-    {
-      title: 'Recruitment Pipeline',
-      description: 'Build relationships with top talent early.',
-      icon: ChartBarIcon,
-    },
-    {
-      title: 'Innovation Network',
-      description: 'Join Bavaria\'s vibrant tech ecosystem.',
+      title: 'Exclusive Access & Events',
+      description: 'Host workshops, sponsor hackathons, and get priority access to exclusive tech events across Bavaria\'s universities.',
       icon: LightBulbIcon,
-    },
-    {
-      title: 'Event Opportunities',
-      description: 'Host workshops and talks with our community.',
-      icon: GlobeAltIcon,
     },
   ];
 
@@ -265,21 +247,21 @@ const Partners = () => {
         />
         <main className="flex-1">
           {/* Hero Section */}
-          <section className="relative z-10 w-full pt-24 pb-12 sm:pt-28 sm:pb-16 lg:pt-32 lg:pb-20">
+          <section className="relative z-10 w-full pt-20 pb-10 sm:pt-28 sm:pb-16 lg:pt-32 lg:pb-20">
             <div className="section-container">
               <motion.div
                 initial={{ opacity: 0, y: 24 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.75, ease: 'easeOut' }}
-                className="text-center"
+                className="text-center px-4 sm:px-0"
               >
                 <p className="label-section">Partnership Opportunities</p>
-                <h1 className="heading-1 mt-6">
+                <h1 className="heading-1 mt-4 sm:mt-6">
                   Invest in Bavaria's
                   <br />
                   Tech Future
                 </h1>
-                <p className="body-hero mt-8 max-w-3xl mx-auto">
+                <p className="body-hero mt-6 sm:mt-8 max-w-3xl mx-auto">
                   Connect with 400+ tech students and professionals. Build your brand and find top talent.
                 </p>
               </motion.div>
@@ -289,7 +271,7 @@ const Partners = () => {
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.75, delay: 0.2, ease: 'easeOut' }}
-                className="mt-16 grid grid-cols-2 gap-6 sm:gap-8 lg:grid-cols-4"
+                className="mt-12 sm:mt-16 grid grid-cols-2 gap-4 sm:gap-6 lg:grid-cols-4 lg:gap-8 px-4 sm:px-0"
               >
                 {stats.map((stat, index) => (
                   <motion.div
@@ -297,12 +279,12 @@ const Partners = () => {
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ duration: 0.5, delay: 0.3 + index * 0.1, ease: 'easeOut' }}
-                    className="glass-surface p-6 text-center backdrop-blur-md"
+                    className="glass-surface p-4 sm:p-6 text-center backdrop-blur-md"
                   >
-                    <div className="text-3xl sm:text-4xl font-bold text-white mb-2">
+                    <div className="text-2xl sm:text-3xl lg:text-4xl font-bold text-white mb-1 sm:mb-2">
                       {stat.number}
                     </div>
-                    <div className="label-stat">{stat.label}</div>
+                    <div className="label-stat text-[10px] sm:text-xs">{stat.label}</div>
                   </motion.div>
                 ))}
               </motion.div>
@@ -316,26 +298,34 @@ const Partners = () => {
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.75, ease: 'easeOut' }}
-                className="text-center mb-12"
+                className="text-center mb-8 sm:mb-12"
               >
                 <h2 className="heading-2">Why Partner With Us</h2>
-                <p className="body-section mt-4 max-w-2xl mx-auto">
+                <p className="body-section mt-4 max-w-2xl mx-auto px-4">
                   Unlock exclusive benefits when you partner with Blau Tech.
                 </p>
               </motion.div>
 
-              <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+              <div className="flex flex-col gap-6 sm:gap-7 max-w-4xl mx-auto px-4 sm:px-0">
                 {benefits.map((benefit, index) => (
                   <motion.div
                     key={benefit.title}
-                    className="glass-surface p-6 backdrop-blur-md"
+                    className="glass-surface p-6 sm:p-7 lg:p-8 backdrop-blur-md rounded-3xl"
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.5, delay: index * 0.1, ease: 'easeOut' }}
+                    transition={{ duration: 0.6, delay: index * 0.2, ease: 'easeOut' }}
                   >
-                    <benefit.icon className="h-8 w-8 text-cyan-300 mb-4" aria-hidden />
-                    <h3 className="text-lg font-semibold text-white mb-2">{benefit.title}</h3>
-                    <p className="body-subtle">{benefit.description}</p>
+                    <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 sm:gap-6">
+                      <div className="flex-shrink-0">
+                        <div className="flex items-center justify-center w-12 h-12 sm:w-14 sm:h-14 rounded-xl">
+                          <benefit.icon className="h-6 w-6 sm:h-7 sm:w-7 text-cyan-300" aria-hidden />
+                        </div>
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <h3 className="text-lg sm:text-xl font-semibold text-white mb-2 sm:mb-3 leading-tight">{benefit.title}</h3>
+                        <p className="body-section text-sm sm:text-base leading-relaxed text-slate-200/90 max-w-none">{benefit.description}</p>
+                      </div>
+                    </div>
                   </motion.div>
                 ))}
               </div>
@@ -343,13 +333,13 @@ const Partners = () => {
           </section>
 
           {/* Forms Section */}
-          <section className="relative z-10 w-full py-12 pb-24 sm:py-16 sm:pb-28 lg:py-20 lg:pb-32">
+          <section className="relative z-10 w-full py-10 pb-20 sm:py-16 sm:pb-28 lg:py-20 lg:pb-32">
             <div className="section-container">
               <motion.div
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.75, ease: 'easeOut' }}
-                className="text-center mb-12"
+                className="text-center mb-8 sm:mb-12 px-4 sm:px-0"
               >
                 <h2 className="heading-2">Let's Connect</h2>
                 <p className="body-section mt-4 max-w-2xl mx-auto">
@@ -361,25 +351,26 @@ const Partners = () => {
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.5, delay: 0.2 }}
-                className="glass-card max-w-4xl mx-auto"
+                className="glass-card max-w-4xl mx-4 sm:mx-auto p-6 sm:p-8"
               >
                 {/* Tabs */}
-                <div className="mb-10 flex gap-2 border-b border-white/10">
+                <div className="mb-8 sm:mb-10 flex gap-1 sm:gap-2 border-b border-white/10 overflow-x-auto">
                   <button
                     type="button"
                     onClick={() => {
                       setActiveTab('general');
                       resetForm();
                     }}
-                    className={`relative px-8 py-4 text-base font-medium ${
+                    className={`relative px-4 sm:px-8 py-3 sm:py-4 text-sm sm:text-base font-medium whitespace-nowrap ${
                       activeTab === 'general'
                         ? 'text-white'
                         : 'text-white/60'
                     }`}
                   >
-                    <span className="flex items-center gap-2">
-                      <UserGroupIcon className="h-5 w-5" />
-                      Partnership Inquiry
+                    <span className="flex items-center gap-1.5 sm:gap-2">
+                      <UserGroupIcon className="h-4 w-4 sm:h-5 sm:w-5" />
+                      <span className="hidden sm:inline">Partnership Inquiry</span>
+                      <span className="sm:hidden">Partnership</span>
                     </span>
                     {activeTab === 'general' && (
                       <motion.div
@@ -395,15 +386,16 @@ const Partners = () => {
                       setActiveTab('event');
                       resetForm();
                     }}
-                    className={`relative px-8 py-4 text-base font-medium ${
+                    className={`relative px-4 sm:px-8 py-3 sm:py-4 text-sm sm:text-base font-medium whitespace-nowrap ${
                       activeTab === 'event'
                         ? 'text-white'
                         : 'text-white/60'
                     }`}
                   >
-                    <span className="flex items-center gap-2">
-                      <CalendarIcon className="h-5 w-5" />
-                      Event Promotion
+                    <span className="flex items-center gap-1.5 sm:gap-2">
+                      <CalendarIcon className="h-4 w-4 sm:h-5 sm:w-5" />
+                      <span className="hidden sm:inline">Event Promotion</span>
+                      <span className="sm:hidden">Events</span>
                     </span>
                     {activeTab === 'event' && (
                       <motion.div
@@ -416,7 +408,7 @@ const Partners = () => {
                 </div>
 
                 {/* Tab Content */}
-                <div className="mt-8">
+                <div className="mt-6 sm:mt-8">
                   <AnimatePresence mode="wait">
                     {activeTab === 'general' ? (
                       <motion.div
@@ -452,9 +444,9 @@ const Partners = () => {
                             </button>
                           </motion.div>
                         ) : (
-                          <form onSubmit={handleGeneralSubmit} noValidate className="grid gap-8">
-                            <div className="grid sm:grid-cols-2 gap-6">
-                              <div className="grid gap-3">
+                          <form onSubmit={handleGeneralSubmit} noValidate className="grid gap-6 sm:gap-8">
+                            <div className="grid sm:grid-cols-2 gap-4 sm:gap-6">
+                              <div className="grid gap-2 sm:gap-3">
                                 <label htmlFor="general-name" className="label-form text-white/80">
                                   Your Name *
                                 </label>
@@ -463,14 +455,14 @@ const Partners = () => {
                                   type="text"
                                   value={generalForm.name}
                                   onChange={handleGeneralChange('name')}
-                                  className="form-field text-base"
+                                  className="form-field text-sm sm:text-base"
                                   placeholder="John Doe"
                                   required
                                 />
-                                {errors.name && <p className="text-sm text-cyan-300">{errors.name}</p>}
+                                {errors.name && <p className="text-xs sm:text-sm text-cyan-300">{errors.name}</p>}
                               </div>
 
-                              <div className="grid gap-3">
+                              <div className="grid gap-2 sm:gap-3">
                                 <label htmlFor="general-company" className="label-form text-white/80">
                                   Company Name *
                                 </label>
@@ -479,15 +471,15 @@ const Partners = () => {
                                   type="text"
                                   value={generalForm.company}
                                   onChange={handleGeneralChange('company')}
-                                  className="form-field text-base"
+                                  className="form-field text-sm sm:text-base"
                                   placeholder="Acme Corporation"
                                   required
                                 />
-                                {errors.company && <p className="text-sm text-cyan-300">{errors.company}</p>}
+                                {errors.company && <p className="text-xs sm:text-sm text-cyan-300">{errors.company}</p>}
                               </div>
                             </div>
 
-                            <div className="grid gap-3">
+                            <div className="grid gap-2 sm:gap-3">
                               <label htmlFor="general-contact-type" className="label-form text-white/80">
                                 Partnership Type *
                               </label>
@@ -495,7 +487,7 @@ const Partners = () => {
                                 id="general-contact-type"
                                 value={generalForm.contactType}
                                 onChange={handleGeneralChange('contactType')}
-                                className="form-field text-base"
+                                className="form-field text-sm sm:text-base"
                                 required
                               >
                                 <option value="">Select partnership type</option>
@@ -504,10 +496,10 @@ const Partners = () => {
                                 <option value="Collaboration">Collaboration</option>
                                 <option value="Other">Other</option>
                               </select>
-                              {errors.contactType && <p className="text-sm text-cyan-300">{errors.contactType}</p>}
+                              {errors.contactType && <p className="text-xs sm:text-sm text-cyan-300">{errors.contactType}</p>}
                             </div>
 
-                            <div className="grid gap-3">
+                            <div className="grid gap-2 sm:gap-3">
                               <label htmlFor="general-message" className="label-form text-white/80">
                                 Your Message *
                               </label>
@@ -515,19 +507,19 @@ const Partners = () => {
                                 id="general-message"
                                 value={generalForm.message}
                                 onChange={handleGeneralChange('message')}
-                                className="form-field min-h-[160px] resize-none text-base"
+                                className="form-field min-h-[140px] sm:min-h-[160px] resize-none text-sm sm:text-base"
                                 placeholder="Tell us about your partnership goals..."
                                 required
                               />
-                              {errors.message && <p className="text-sm text-cyan-300">{errors.message}</p>}
+                              {errors.message && <p className="text-xs sm:text-sm text-cyan-300">{errors.message}</p>}
                             </div>
 
-                            <div className="flex items-center justify-between gap-4 pt-4 border-t border-white/10">
-                              <p className="text-sm text-white/60">* Required fields</p>
+                            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-4 pt-4 border-t border-white/10">
+                              <p className="text-xs sm:text-sm text-white/60">* Required fields</p>
                               <button
                                 type="submit"
                                 disabled={!isGeneralFormValid() || isSubmitting}
-                                className={`btn-primary px-10 ${
+                                className={`btn-primary w-full sm:w-auto px-8 sm:px-10 py-2.5 sm:py-3 text-sm sm:text-base ${
                                   !isGeneralFormValid() || isSubmitting ? 'cursor-not-allowed opacity-50' : ''
                                 }`}
                               >
@@ -571,22 +563,22 @@ const Partners = () => {
                             </button>
                           </motion.div>
                         ) : (
-                          <form onSubmit={handleEventSubmit} noValidate className="grid gap-8">
-                            <div className="bg-cyan-500/10 border border-cyan-400/20 rounded-2xl p-6">
-                              <div className="flex items-start gap-4">
-                                <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-cyan-400/20">
-                                  <CalendarIcon className="h-6 w-6 text-cyan-300" />
+                          <form onSubmit={handleEventSubmit} noValidate className="grid gap-6 sm:gap-8">
+                            <div className="bg-cyan-500/10 border border-cyan-400/20 rounded-2xl p-4 sm:p-6">
+                              <div className="flex items-start gap-3 sm:gap-4">
+                                <div className="flex h-8 w-8 sm:h-10 sm:w-10 flex-shrink-0 items-center justify-center rounded-xl bg-cyan-400/20">
+                                  <CalendarIcon className="h-5 w-5 sm:h-6 sm:w-6 text-cyan-300" />
                                 </div>
                                 <div>
-                                  <h3 className="text-lg font-semibold text-white mb-2">Event Promotion</h3>
-                                  <p className="body-subtle">
+                                  <h3 className="text-base sm:text-lg font-semibold text-white mb-1.5 sm:mb-2">Event Promotion</h3>
+                                  <p className="body-subtle text-xs sm:text-sm">
                                     Submit your event link. We'll promote it to 400+ tech enthusiasts through our channels.
                                   </p>
                                 </div>
                               </div>
                             </div>
 
-                            <div className="grid gap-3">
+                            <div className="grid gap-2 sm:gap-3">
                               <label htmlFor="event-link" className="label-form text-white/80">
                                 Event Link (LinkedIn, Lu.ma, Eventbrite, etc.) *
                               </label>
@@ -595,22 +587,22 @@ const Partners = () => {
                                 type="url"
                                 value={eventForm.link}
                                 onChange={handleEventChange('link')}
-                                className="form-field text-base rounded-2xl"
+                                className="form-field text-sm sm:text-base rounded-2xl"
                                 placeholder="https://lu.ma/your-event"
                                 required
                               />
-                              {errors.link && <p className="text-sm text-cyan-300">{errors.link}</p>}
-                              <p className="text-sm text-white/50 mt-1">
+                              {errors.link && <p className="text-xs sm:text-sm text-cyan-300">{errors.link}</p>}
+                              <p className="text-xs sm:text-sm text-white/50 mt-1">
                                 Provide a direct link to your event page.
                               </p>
                             </div>
 
-                            <div className="flex items-center justify-between gap-4 pt-4 border-t border-white/10">
-                              <p className="text-sm text-white/60">* Required field</p>
+                            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-4 pt-4 border-t border-white/10">
+                              <p className="text-xs sm:text-sm text-white/60">* Required field</p>
                               <button
                                 type="submit"
                                 disabled={!isEventFormValid() || isSubmitting}
-                                className={`btn-primary px-10 ${
+                                className={`btn-primary w-full sm:w-auto px-8 sm:px-10 py-2.5 sm:py-3 text-sm sm:text-base ${
                                   !isEventFormValid() || isSubmitting ? 'cursor-not-allowed opacity-50' : ''
                                 }`}
                               >
