@@ -1,8 +1,6 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
-  CalendarIcon, 
-  UserGroupIcon,
   SparklesIcon,
   RocketLaunchIcon,
   LightBulbIcon
@@ -14,12 +12,10 @@ import JoinModal from '../components/JoinModal';
 const initialGeneralForm = {
   name: '',
   company: '',
-  contactType: '',
   message: '',
 };
 
 const initialEventForm = {
-  name: '',
   link: '',
 };
 
@@ -28,16 +24,19 @@ const Partners = () => {
   const [activeTab, setActiveTab] = useState('general');
   const [generalForm, setGeneralForm] = useState(initialGeneralForm);
   const [eventForm, setEventForm] = useState(initialEventForm);
-  const [submitted, setSubmitted] = useState(false);
-  const [errors, setErrors] = useState({});
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [hasAttemptedSubmit, setHasAttemptedSubmit] = useState(false);
+  const [generalSubmitted, setGeneralSubmitted] = useState(false);
+  const [eventSubmitted, setEventSubmitted] = useState(false);
+  const [generalErrors, setGeneralErrors] = useState({});
+  const [eventErrors, setEventErrors] = useState({});
+  const [isGeneralSubmitting, setIsGeneralSubmitting] = useState(false);
+  const [isEventSubmitting, setIsEventSubmitting] = useState(false);
+  const [generalHasAttemptedSubmit, setGeneralHasAttemptedSubmit] = useState(false);
+  const [eventHasAttemptedSubmit, setEventHasAttemptedSubmit] = useState(false);
 
   const isGeneralFormValid = () => {
     return (
       generalForm.name.trim() !== '' &&
       generalForm.company.trim() !== '' &&
-      generalForm.contactType !== '' &&
       generalForm.message.trim() !== ''
     );
   };
@@ -53,9 +52,6 @@ const Partners = () => {
     }
     if (!generalForm.company.trim()) {
       nextErrors.company = 'Please provide your company.';
-    }
-    if (!generalForm.contactType || generalForm.contactType === '') {
-      nextErrors.contactType = 'Please select a contact type.';
     }
     if (!generalForm.message.trim()) {
       nextErrors.message = 'Please provide a message.';
@@ -76,8 +72,8 @@ const Partners = () => {
   const handleGeneralChange = (field) => (event) => {
     const value = event.target.value;
     setGeneralForm((prev) => ({ ...prev, [field]: value }));
-    if (errors[field]) {
-      setErrors((prev) => {
+    if (generalErrors[field]) {
+      setGeneralErrors((prev) => {
         const next = { ...prev };
         delete next[field];
         return next;
@@ -88,8 +84,8 @@ const Partners = () => {
   const handleEventChange = (field) => (event) => {
     const value = event.target.value;
     setEventForm((prev) => ({ ...prev, [field]: value }));
-    if (errors[field]) {
-      setErrors((prev) => {
+    if (eventErrors[field]) {
+      setEventErrors((prev) => {
         const next = { ...prev };
         delete next[field];
         return next;
@@ -99,30 +95,27 @@ const Partners = () => {
 
   const handleGeneralSubmit = (event) => {
     event.preventDefault();
-    setHasAttemptedSubmit(true);
+    setGeneralHasAttemptedSubmit(true);
     
     // Validate the form
     const formErrors = validateGeneralForm();
-    setErrors(formErrors);
+    setGeneralErrors(formErrors);
 
     // Only proceed if there are no errors
     if (Object.keys(formErrors).length === 0) {
-      setIsSubmitting(true);
+      setIsGeneralSubmitting(true);
       
-      // Format the email subject: "contactType - Company"
-      const subject = encodeURIComponent(`${generalForm.contactType} - ${generalForm.company}`);
+      // Format the email subject
+      const subject = encodeURIComponent(`Partnership Inquiry - ${generalForm.company}`);
       
       // Format the email body with professional structure
       const greeting = 'Hello Blau Tech,';
-      const introSentence = `I am writing to inquire about ${generalForm.contactType.toLowerCase()} opportunities with Blau Tech.`;
       const messageSection = generalForm.message.trim();
       const signature = `Best regards,\n\n${generalForm.name}\n${generalForm.company}`;
       
       // Create a well-structured, professional email body
       const body = [
         greeting,
-        '',
-        introSentence,
         '',
         messageSection,
         '',
@@ -142,34 +135,34 @@ const Partners = () => {
       
       // Show success message after a brief delay
       setTimeout(() => {
-        setSubmitted(true);
+        setGeneralSubmitted(true);
         setGeneralForm(initialGeneralForm);
-        setIsSubmitting(false);
+        setIsGeneralSubmitting(false);
       }, 100);
     }
   };
 
   const handleEventSubmit = async (event) => {
     event.preventDefault();
-    setHasAttemptedSubmit(true);
+    setEventHasAttemptedSubmit(true);
     
     // Validate the form
     const formErrors = validateEventForm();
-    setErrors(formErrors);
+    setEventErrors(formErrors);
 
     // Only proceed if there are no errors
     if (Object.keys(formErrors).length === 0) {
-      setIsSubmitting(true);
+      setIsEventSubmitting(true);
       
       try {
         // Send webhook POST request
         const webhookUrl = import.meta.env.VITE_N8N_WEBHOOK_URL;
         if (!webhookUrl) {
           console.error('Webhook URL is not set');
-          setErrors({
+          setEventErrors({
             link: 'Something went wrong. Please try again.',
           });
-          setIsSubmitting(false);
+          setIsEventSubmitting(false);
           return;
         }
         
@@ -183,33 +176,48 @@ const Partners = () => {
  
         if (!webhookResponse.ok) {
           console.error('Webhook error:', `HTTP error! status: ${webhookResponse.status}`);
-          setErrors({
+          setEventErrors({
             link: 'Something went wrong. Please try again.',
           });
-          setIsSubmitting(false);
+          setIsEventSubmitting(false);
           return;
         }
 
         // Success - show success message
-        setSubmitted(true);
+        setEventSubmitted(true);
         setEventForm(initialEventForm);
-        setIsSubmitting(false);
+        setIsEventSubmitting(false);
       } catch (err) {
         console.error('Unexpected error:', err);
-        setErrors({
+        setEventErrors({
           link: 'Something went wrong. Please try again.',
         });
-        setIsSubmitting(false);
+        setIsEventSubmitting(false);
       }
     }
   };
 
-  const resetForm = () => {
-    setSubmitted(false);
+  const resetGeneralForm = () => {
+    setGeneralSubmitted(false);
     setGeneralForm(initialGeneralForm);
+    setGeneralErrors({});
+    setGeneralHasAttemptedSubmit(false);
+  };
+
+  const resetEventForm = () => {
+    setEventSubmitted(false);
     setEventForm(initialEventForm);
-    setErrors({});
-    setHasAttemptedSubmit(false);
+    setEventErrors({});
+    setEventHasAttemptedSubmit(false);
+  };
+
+  const handleTabChange = (tab) => {
+    setActiveTab(tab);
+    if (tab === 'general') {
+      resetGeneralForm();
+    } else {
+      resetEventForm();
+    }
   };
 
   const benefits = [
@@ -284,7 +292,7 @@ const Partners = () => {
                     <div className="text-2xl sm:text-3xl lg:text-4xl font-bold text-white mb-1 sm:mb-2">
                       {stat.number}
                     </div>
-                    <div className="label-stat text-[10px] sm:text-xs">{stat.label}</div>
+                    <div className="label-stat">{stat.label}</div>
                   </motion.div>
                 ))}
               </motion.div>
@@ -306,24 +314,24 @@ const Partners = () => {
                 </p>
               </motion.div>
 
-              <div className="flex flex-col gap-6 sm:gap-7 max-w-4xl mx-auto px-4 sm:px-0">
+              <div className="flex flex-col gap-4 max-w-4xl mx-auto px-4 sm:px-0">
                 {benefits.map((benefit, index) => (
                   <motion.div
                     key={benefit.title}
-                    className="glass-surface p-6 sm:p-7 lg:p-8 backdrop-blur-md rounded-3xl"
+                    className="glass-surface p-4 sm:p-5 backdrop-blur-md rounded-lg"
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ duration: 0.6, delay: index * 0.2, ease: 'easeOut' }}
                   >
-                    <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 sm:gap-6">
+                    <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:gap-4">
                       <div className="flex-shrink-0">
-                        <div className="flex items-center justify-center w-12 h-12 sm:w-14 sm:h-14 rounded-xl">
-                          <benefit.icon className="h-6 w-6 sm:h-7 sm:w-7 text-cyan-300" aria-hidden />
+                        <div className="flex items-center justify-center w-10 h-10 sm:w-12 sm:h-12 rounded-lg">
+                          <benefit.icon className="h-5 w-5 sm:h-6 sm:w-6 text-cyan-300" aria-hidden />
                         </div>
                       </div>
                       <div className="flex-1 min-w-0">
-                        <h3 className="text-lg sm:text-xl font-semibold text-white mb-2 sm:mb-3 leading-tight">{benefit.title}</h3>
-                        <p className="body-section text-sm sm:text-base leading-relaxed text-slate-200/90 max-w-none">{benefit.description}</p>
+                        <h3 className="text-lg sm:text-xl lg:text-2xl font-semibold text-white mb-1.5 sm:mb-2 leading-tight">{benefit.title}</h3>
+                        <p className="body-section leading-relaxed text-slate-200/90 max-w-none">{benefit.description}</p>
                       </div>
                     </div>
                   </motion.div>
@@ -333,13 +341,13 @@ const Partners = () => {
           </section>
 
           {/* Forms Section */}
-          <section className="relative z-10 w-full py-10 pb-20 sm:py-16 sm:pb-28 lg:py-20 lg:pb-32">
+          <section className="relative z-10 w-full py-8 pb-16 sm:py-12 sm:pb-20 lg:py-16 lg:pb-24">
             <div className="section-container">
               <motion.div
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.75, ease: 'easeOut' }}
-                className="text-center mb-8 sm:mb-12 px-4 sm:px-0"
+                className="text-center mb-6 sm:mb-8 px-4 sm:px-0"
               >
                 <h2 className="heading-2">Let's Connect</h2>
                 <p className="body-section mt-4 max-w-2xl mx-auto">
@@ -351,179 +359,142 @@ const Partners = () => {
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.5, delay: 0.2 }}
-                className="glass-card max-w-4xl mx-4 sm:mx-auto p-6 sm:p-8"
+                className="glass-card max-w-4xl mx-4 sm:mx-auto p-4 sm:p-6 rounded-lg"
               >
-                {/* Tabs */}
-                <div className="mb-8 sm:mb-10 flex gap-1 sm:gap-2 border-b border-white/10 overflow-x-auto">
+                {/* Professional Tabs with Sharp Corners */}
+                <div className="mb-3 flex gap-0">
                   <button
                     type="button"
-                    onClick={() => {
-                      setActiveTab('general');
-                      resetForm();
-                    }}
-                    className={`relative px-4 sm:px-8 py-3 sm:py-4 text-sm sm:text-base font-medium whitespace-nowrap ${
+                    onClick={() => handleTabChange('general')}
+                    className={`relative px-3 sm:px-4 py-2 text-xs sm:text-sm lg:text-base font-medium transition-all duration-200 ${
                       activeTab === 'general'
                         ? 'text-white'
-                        : 'text-white/60'
+                        : 'text-white/50 hover:text-white/70'
                     }`}
                   >
-                    <span className="flex items-center gap-1.5 sm:gap-2">
-                      <UserGroupIcon className="h-4 w-4 sm:h-5 sm:w-5" />
-                      <span className="hidden sm:inline">Partnership Inquiry</span>
-                      <span className="sm:hidden">Partnership</span>
+                    <span className="relative inline-block">
+                      Partnership Inquiry
+                      {activeTab === 'general' && (
+                        <motion.span
+                          className="absolute -bottom-2 left-0 right-0 h-0.5 bg-white"
+                          layoutId="activeTabIndicator"
+                          transition={{ type: 'spring', bounce: 0.2, duration: 0.4 }}
+                        />
+                      )}
                     </span>
-                    {activeTab === 'general' && (
-                      <motion.div
-                        className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-cyan-400 to-blue-500 rounded-full"
-                        layoutId="activeTab"
-                        transition={{ type: 'spring', bounce: 0.2, duration: 0.6 }}
-                      />
-                    )}
                   </button>
                   <button
                     type="button"
-                    onClick={() => {
-                      setActiveTab('event');
-                      resetForm();
-                    }}
-                    className={`relative px-4 sm:px-8 py-3 sm:py-4 text-sm sm:text-base font-medium whitespace-nowrap ${
+                    onClick={() => handleTabChange('event')}
+                    className={`relative px-3 sm:px-4 py-2 text-xs sm:text-sm lg:text-base font-medium transition-all duration-200 ${
                       activeTab === 'event'
                         ? 'text-white'
-                        : 'text-white/60'
+                        : 'text-white/50 hover:text-white/70'
                     }`}
                   >
-                    <span className="flex items-center gap-1.5 sm:gap-2">
-                      <CalendarIcon className="h-4 w-4 sm:h-5 sm:w-5" />
-                      <span className="hidden sm:inline">Event Promotion</span>
-                      <span className="sm:hidden">Events</span>
+                    <span className="relative inline-block">
+                      Event Promotion
+                      {activeTab === 'event' && (
+                        <motion.span
+                          className="absolute -bottom-2 left-0 right-0 h-0.5 bg-white"
+                          layoutId="activeTabIndicator"
+                          transition={{ type: 'spring', bounce: 0.2, duration: 0.4 }}
+                        />
+                      )}
                     </span>
-                    {activeTab === 'event' && (
-                      <motion.div
-                        className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-cyan-400 to-blue-500 rounded-full"
-                        layoutId="activeTab"
-                        transition={{ type: 'spring', bounce: 0.2, duration: 0.6 }}
-                      />
-                    )}
                   </button>
                 </div>
 
                 {/* Tab Content */}
-                <div className="mt-6 sm:mt-8">
+                <div className="mt-4">
                   <AnimatePresence mode="wait">
                     {activeTab === 'general' ? (
                       <motion.div
                         key="general"
-                        initial={{ opacity: 0, x: -20 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        exit={{ opacity: 0, x: 20 }}
-                        transition={{ duration: 0.3 }}
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -10 }}
+                        transition={{ duration: 0.3, ease: 'easeOut' }}
                       >
-                        {submitted ? (
+                        {generalSubmitted ? (
                           <motion.div
-                            className="flex flex-col gap-6 text-center py-12"
+                            className="flex flex-col gap-4 text-center py-8"
                             initial={{ opacity: 0, scale: 0.95 }}
                             animate={{ opacity: 1, scale: 1 }}
                             transition={{ duration: 0.35 }}
                           >
-                            <div className="mb-4 flex justify-center">
-                              <div className="flex h-20 w-20 items-center justify-center rounded-full bg-gradient-to-br from-green-400/20 to-emerald-500/20 border border-green-400/30">
-                                <svg className="h-10 w-10 text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                                </svg>
-                              </div>
-                            </div>
-                            <h3 className="heading-2">Message Sent!</h3>
+                            <h3 className="heading-2">Message Sent</h3>
                             <p className="body-section max-w-md mx-auto">
                               Thank you! We'll get back to you within 1-2 business days.
                             </p>
                             <button
-                              onClick={resetForm}
-                              className="btn-secondary mt-4 mx-auto"
+                              onClick={resetGeneralForm}
+                              className="btn-secondary mt-3 mx-auto"
                             >
                               Send Another Message
                             </button>
                           </motion.div>
                         ) : (
-                          <form onSubmit={handleGeneralSubmit} noValidate className="grid gap-6 sm:gap-8">
-                            <div className="grid sm:grid-cols-2 gap-4 sm:gap-6">
-                              <div className="grid gap-2 sm:gap-3">
+                          <form onSubmit={handleGeneralSubmit} noValidate className="grid gap-4">
+                            <div className="grid sm:grid-cols-2 gap-3 sm:gap-4">
+                              <div className="grid gap-1.5">
                                 <label htmlFor="general-name" className="label-form text-white/80">
-                                  Your Name *
+                                  Name *
                                 </label>
                                 <input
                                   id="general-name"
                                   type="text"
                                   value={generalForm.name}
                                   onChange={handleGeneralChange('name')}
-                                  className="form-field text-sm sm:text-base"
+                                  className="form-field text-xs sm:text-sm lg:text-base rounded-sm"
                                   placeholder="John Doe"
                                   required
                                 />
-                                {errors.name && <p className="text-xs sm:text-sm text-cyan-300">{errors.name}</p>}
+                                {generalErrors.name && <p className="text-[10px] sm:text-xs lg:text-sm text-cyan-300">{generalErrors.name}</p>}
                               </div>
 
-                              <div className="grid gap-2 sm:gap-3">
+                              <div className="grid gap-1.5">
                                 <label htmlFor="general-company" className="label-form text-white/80">
-                                  Company Name *
+                                  Company *
                                 </label>
                                 <input
                                   id="general-company"
                                   type="text"
                                   value={generalForm.company}
                                   onChange={handleGeneralChange('company')}
-                                  className="form-field text-sm sm:text-base"
+                                  className="form-field text-xs sm:text-sm lg:text-base rounded-sm"
                                   placeholder="Acme Corporation"
                                   required
                                 />
-                                {errors.company && <p className="text-xs sm:text-sm text-cyan-300">{errors.company}</p>}
+                                {generalErrors.company && <p className="text-[10px] sm:text-xs lg:text-sm text-cyan-300">{generalErrors.company}</p>}
                               </div>
                             </div>
 
-                            <div className="grid gap-2 sm:gap-3">
-                              <label htmlFor="general-contact-type" className="label-form text-white/80">
-                                Partnership Type *
-                              </label>
-                              <select
-                                id="general-contact-type"
-                                value={generalForm.contactType}
-                                onChange={handleGeneralChange('contactType')}
-                                className="form-field text-sm sm:text-base"
-                                required
-                              >
-                                <option value="">Select partnership type</option>
-                                <option value="Strategic Partnership">Strategic Partnership</option>
-                                <option value="Event Sponsorship">Event Sponsorship</option>
-                                <option value="Collaboration">Collaboration</option>
-                                <option value="Other">Other</option>
-                              </select>
-                              {errors.contactType && <p className="text-xs sm:text-sm text-cyan-300">{errors.contactType}</p>}
-                            </div>
-
-                            <div className="grid gap-2 sm:gap-3">
+                            <div className="grid gap-1.5">
                               <label htmlFor="general-message" className="label-form text-white/80">
-                                Your Message *
+                                Message *
                               </label>
                               <textarea
                                 id="general-message"
                                 value={generalForm.message}
                                 onChange={handleGeneralChange('message')}
-                                className="form-field min-h-[140px] sm:min-h-[160px] resize-none text-sm sm:text-base"
+                                className="form-field min-h-[100px] sm:min-h-[120px] resize-none text-xs sm:text-sm lg:text-base rounded-sm"
                                 placeholder="Tell us about your partnership goals..."
                                 required
                               />
-                              {errors.message && <p className="text-xs sm:text-sm text-cyan-300">{errors.message}</p>}
+                              {generalErrors.message && <p className="text-[10px] sm:text-xs lg:text-sm text-cyan-300">{generalErrors.message}</p>}
                             </div>
 
-                            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-4 pt-4 border-t border-white/10">
-                              <p className="text-xs sm:text-sm text-white/60">* Required fields</p>
+                            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 sm:gap-3 pt-3">
+                              <p className="text-[10px] sm:text-xs lg:text-sm text-white/60">* Required fields</p>
                               <button
                                 type="submit"
-                                disabled={!isGeneralFormValid() || isSubmitting}
-                                className={`btn-primary w-full sm:w-auto px-8 sm:px-10 py-2.5 sm:py-3 text-sm sm:text-base ${
-                                  !isGeneralFormValid() || isSubmitting ? 'cursor-not-allowed opacity-50' : ''
+                                disabled={!isGeneralFormValid() || isGeneralSubmitting}
+                                className={`btn-primary w-full sm:w-auto px-6 sm:px-8 py-2 text-xs sm:text-sm lg:text-base ${
+                                  !isGeneralFormValid() || isGeneralSubmitting ? 'cursor-not-allowed opacity-50' : ''
                                 }`}
                               >
-                                <span>{isSubmitting ? 'Sending...' : 'Send Inquiry'}</span>
+                                <span>{isGeneralSubmitting ? 'Sending...' : 'Send Inquiry'}</span>
                               </button>
                             </div>
                           </form>
@@ -532,81 +503,57 @@ const Partners = () => {
                     ) : (
                       <motion.div
                         key="event"
-                        initial={{ opacity: 0, x: -20 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        exit={{ opacity: 0, x: 20 }}
-                        transition={{ duration: 0.3 }}
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -10 }}
+                        transition={{ duration: 0.3, ease: 'easeOut' }}
                       >
-                        {submitted ? (
+                        {eventSubmitted ? (
                           <motion.div
-                            className="flex flex-col gap-6 text-center py-12"
+                            className="flex flex-col gap-4 text-center py-8"
                             initial={{ opacity: 0, scale: 0.95 }}
                             animate={{ opacity: 1, scale: 1 }}
                             transition={{ duration: 0.35 }}
                           >
-                            <div className="mb-4 flex justify-center">
-                              <div className="flex h-20 w-20 items-center justify-center rounded-full bg-gradient-to-br from-green-400/20 to-emerald-500/20 border border-green-400/30">
-                                <svg className="h-10 w-10 text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                                </svg>
-                              </div>
-                            </div>
-                            <h3 className="heading-2">Event Submitted!</h3>
+                            <h3 className="heading-2">Event Submitted</h3>
                             <p className="body-section max-w-md mx-auto">
                               Thank you! We'll review your event and reach out within 24 hours.
                             </p>
                             <button
-                              onClick={resetForm}
-                              className="btn-secondary mt-4 mx-auto"
+                              onClick={resetEventForm}
+                              className="btn-secondary mt-3 mx-auto"
                             >
                               Submit Another Event
                             </button>
                           </motion.div>
                         ) : (
-                          <form onSubmit={handleEventSubmit} noValidate className="grid gap-6 sm:gap-8">
-                            <div className="bg-cyan-500/10 border border-cyan-400/20 rounded-2xl p-4 sm:p-6">
-                              <div className="flex items-start gap-3 sm:gap-4">
-                                <div className="flex h-8 w-8 sm:h-10 sm:w-10 flex-shrink-0 items-center justify-center rounded-xl bg-cyan-400/20">
-                                  <CalendarIcon className="h-5 w-5 sm:h-6 sm:w-6 text-cyan-300" />
-                                </div>
-                                <div>
-                                  <h3 className="text-base sm:text-lg font-semibold text-white mb-1.5 sm:mb-2">Event Promotion</h3>
-                                  <p className="body-subtle text-xs sm:text-sm">
-                                    Submit your event link. We'll promote it to 400+ tech enthusiasts through our channels.
-                                  </p>
-                                </div>
-                              </div>
-                            </div>
-
-                            <div className="grid gap-2 sm:gap-3">
+                          <form onSubmit={handleEventSubmit} noValidate className="grid gap-4">
+                            <div className="grid gap-1.5">
                               <label htmlFor="event-link" className="label-form text-white/80">
-                                Event Link (LinkedIn, Lu.ma, Eventbrite, etc.) *
+                                Event Link *
                               </label>
                               <input
                                 id="event-link"
                                 type="url"
                                 value={eventForm.link}
                                 onChange={handleEventChange('link')}
-                                className="form-field text-sm sm:text-base rounded-2xl"
-                                placeholder="https://lu.ma/your-event"
+                                className="form-field text-xs sm:text-sm lg:text-base rounded-sm"
+                                placeholder="https://example.com/event"
                                 required
                               />
-                              {errors.link && <p className="text-xs sm:text-sm text-cyan-300">{errors.link}</p>}
-                              <p className="text-xs sm:text-sm text-white/50 mt-1">
-                                Provide a direct link to your event page.
-                              </p>
+                              {eventErrors.link && <p className="text-[10px] sm:text-xs lg:text-sm text-cyan-300">{eventErrors.link}</p>}
                             </div>
 
-                            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-4 pt-4 border-t border-white/10">
-                              <p className="text-xs sm:text-sm text-white/60">* Required field</p>
+                            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 sm:gap-3 pt-3">
+                              <p className="text-[10px] sm:text-xs lg:text-sm text-white/60">* Required field</p>
                               <button
                                 type="submit"
-                                disabled={!isEventFormValid() || isSubmitting}
-                                className={`btn-primary w-full sm:w-auto px-8 sm:px-10 py-2.5 sm:py-3 text-sm sm:text-base ${
-                                  !isEventFormValid() || isSubmitting ? 'cursor-not-allowed opacity-50' : ''
+                                disabled={!isEventFormValid() || isEventSubmitting}
+                                className={`btn-primary w-full sm:w-auto px-6 sm:px-8 py-2 text-xs sm:text-sm lg:text-base ${
+                                  !isEventFormValid() || isEventSubmitting ? 'cursor-not-allowed opacity-50' : ''
                                 }`}
                               >
-                                <span>{isSubmitting ? 'Submitting...' : 'Submit Event'}</span>
+                                <span>{isEventSubmitting ? 'Submitting...' : 'Submit Event'}</span>
                               </button>
                             </div>
                           </form>

@@ -2,9 +2,19 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Typography System - 2 Font Families */
+:root {
+  /* Font Family 1: Display/Headings */
+  --font-display: system-ui, -apple-system, 'Segoe UI', sans-serif;
+  
+  /* Font Family 2: Body/UI */
+  --font-body: system-ui, -apple-system, 'Segoe UI', sans-serif;
+}
+
 html {
   scroll-behavior: smooth;
   background-color: #274062;
+  font-family: var(--font-body);
 }
 
 body {
@@ -134,51 +144,65 @@ body {
 }
 
 .btn-primary {
-  @apply action-button btn-glow inline-flex items-center justify-center gap-3 text-base font-medium text-white;
+  font-family: var(--font-body);
+  @apply action-button btn-glow inline-flex items-center justify-center gap-3 font-medium text-white;
 }
 
 .btn-secondary {
-  @apply inline-flex items-center justify-center gap-2 rounded-full border border-white/20 bg-white/5 px-7 py-3 text-base font-medium text-white/70;
+  font-family: var(--font-body);
+  @apply inline-flex items-center justify-center gap-2 rounded-full border border-white/20 bg-white/5 px-7 py-3 font-medium text-white/70;
 }
 
 .btn-partners {
   @apply inline-flex items-center justify-center gap-2 rounded-full border border-white/30 bg-white/90 px-8 py-3 text-base font-medium text-[#020817]/90;
 }
 
+/* Typography Scale - Logical System */
+/* Mobile (base) → Tablet (sm) → Desktop (lg) */
+
 .heading-1 {
-  @apply text-4xl font-semibold leading-tight text-white sm:text-5xl lg:text-6xl;
+  font-family: var(--font-display);
+  @apply text-3xl font-semibold leading-tight text-white sm:text-4xl lg:text-5xl;
 }
 
 .heading-2 {
-  @apply text-3xl font-semibold leading-snug text-white sm:text-4xl;
+  font-family: var(--font-display);
+  @apply text-2xl font-semibold leading-snug text-white sm:text-3xl lg:text-4xl;
 }
 
 .heading-3 {
-  @apply text-2xl font-semibold leading-snug text-white;
+  font-family: var(--font-display);
+  @apply text-xl font-semibold leading-snug text-white sm:text-2xl lg:text-3xl;
 }
 
 .body-hero {
-  @apply mx-auto max-w-xl text-lg leading-relaxed text-slate-200/80 sm:text-xl;
+  font-family: var(--font-body);
+  @apply mx-auto max-w-xl text-base leading-relaxed text-slate-200/80 sm:text-lg lg:text-xl;
 }
 
 .body-section {
-  @apply text-base leading-relaxed text-slate-200/80 sm:text-lg;
+  font-family: var(--font-body);
+  @apply text-sm leading-relaxed text-slate-200/80 sm:text-base lg:text-lg;
 }
 
 .body-subtle {
-  @apply text-sm leading-relaxed text-slate-200/70;
+  font-family: var(--font-body);
+  @apply text-xs leading-relaxed text-slate-200/70 sm:text-sm lg:text-base;
 }
 
 .label-section {
-  @apply inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/5 px-4 py-2 text-xs uppercase tracking-[0.4em] text-white/70;
+  font-family: var(--font-body);
+  @apply inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/5 px-4 py-2 text-[10px] uppercase tracking-[0.4em] text-white/70 sm:text-xs lg:text-sm;
 }
 
 .label-form {
-  @apply text-xs uppercase tracking-[0.35em] text-white/60;
+  font-family: var(--font-body);
+  @apply text-[10px] uppercase tracking-[0.35em] text-white/60 sm:text-xs lg:text-sm;
 }
 
 .label-stat {
-  @apply text-xs uppercase tracking-[0.3em] text-white/60;
+  font-family: var(--font-body);
+  @apply text-[10px] uppercase tracking-[0.3em] text-white/60 sm:text-xs lg:text-sm;
 }
 
 .icon-bubble {
@@ -186,7 +210,8 @@ body {
 }
 
 .form-field {
-  @apply w-full rounded-2xl border border-white/15 bg-white/10 px-4 py-3 text-base text-white placeholder:text-white/40 transition-colors duration-200 ease-out focus:border-cyan-400 focus:outline-none focus:ring-2 focus:ring-cyan-400/40;
+  font-family: var(--font-body);
+  @apply w-full rounded-2xl border border-white/15 bg-white/10 px-4 py-3 text-white placeholder:text-white/40 transition-colors duration-200 ease-out focus:border-cyan-400 focus:outline-none focus:ring-2 focus:ring-cyan-400/40;
 }
 
 .form-checkbox {
