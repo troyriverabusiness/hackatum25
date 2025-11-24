@@ -18,7 +18,7 @@ const Home = () => {
         <Navbar 
           onJoinClick={() => setIsModalOpen(true)} 
           onPartnersClick={() => navigate('/partners')}
-        />
+        /> 
         <main className="flex-1">
           <Hero onJoinClick={() => setIsModalOpen(true)} />
           <About />
